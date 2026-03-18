@@ -264,6 +264,7 @@
     <div class="view-toggle">
       <button class="view-btn active" id="btnGrid" onclick="setView('grid')">⊞</button>
       <button class="view-btn" id="btnTable" onclick="setView('table')">≡</button>
+      <button class="view-btn" onclick="exportPDF()" title="Export PDF">📄</button>
     </div>
   </div>
 </div>
@@ -918,6 +919,60 @@ function renderQuickCodes() {
 // ─── UTILS ────────────────────────────────────────────────────────────────────
 function esc(str) {
   return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── EXPORT PDF ──────────────────────────────────────────────────────────────
+function exportPDF() {
+  const active = Object.values(products).filter(p => !p.archived && !p.deleted);
+  if (!active.length) { alert('Žiadne produkty na export'); return; }
+
+  const now = new Date().toLocaleDateString('sk-SK');
+  const groups = {};
+  active.forEach(p => {
+    const s = STATUS_LABELS[p.status] || 'Na sklade';
+    if (!groups[s]) groups[s] = [];
+    groups[s].push(p);
+  });
+
+  let html = `<html><head><meta charset="utf-8"><title>Limitky Export ${now}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; font-size: 12px; }
+    h1 { font-size: 18px; margin-bottom: 4px; }
+    h2 { font-size: 14px; margin: 16px 0 6px; padding: 4px 8px; border-radius: 4px; }
+    .bg-stock { background: #F5F5F5; }
+    .bg-preparing { background: #E0F7FA; }
+    .bg-sent { background: #FFF3E0; }
+    .bg-returned { background: #E3F2FD; }
+    .bg-published { background: #E8F5E9; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    th, td { border: 1px solid #DDD; padding: 5px 8px; text-align: left; }
+    th { background: #F9F9F9; font-weight: 600; }
+    .summary { color: #666; font-size: 11px; margin-bottom: 16px; }
+    @media print { body { padding: 0; } }
+  </style></head><body>
+  <h1>👜 Limitky — Prehľad produktov</h1>
+  <div class="summary">${now} · Celkom: ${active.length} produktov</div>`;
+
+  const statusOrder = ['preparing','sent','returned','published','stock'];
+  const bgClass = { 'Na sklade':'bg-stock', 'Bošany':'bg-preparing', 'U fotografa':'bg-sent', 'Vrátené':'bg-returned', 'Na webe':'bg-published' };
+
+  statusOrder.forEach(sk => {
+    const label = STATUS_LABELS[sk] || sk;
+    const items = groups[label];
+    if (!items || !items.length) return;
+    html += '<h2 class="' + (bgClass[label]||'') + '">' + label + ' (' + items.length + ')</h2>';
+    html += '<table><tr><th>Kód</th><th>Názov</th><th>Ks</th><th>Cena</th><th>Miesto</th><th>Dátum</th></tr>';
+    items.forEach(p => {
+      html += '<tr><td>' + (p.code||'') + '</td><td>' + (p.name||'') + '</td><td>' + (p.qty||'—') + '</td><td>' + (p.price ? p.price+'€' : '—') + '</td><td>' + (p.miesto||'—') + '</td><td>' + (p.date||'—') + '</td></tr>';
+    });
+    html += '</table>';
+  });
+
+  html += '</body></html>';
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+  win.print();
 }
 
 // Init render (for non-firebase mode)
