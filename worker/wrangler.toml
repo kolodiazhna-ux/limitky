@@ -1,0 +1,21 @@
+name            = "limitky-api"
+main            = "src/index.js"
+compatibility_date = "2024-09-23"
+
+# ─── D1 Database ──────────────────────────────────────────────────────────────
+[[d1_databases]]
+binding      = "DB"
+database_name = "limitky"
+database_id  = "43f6c13e-0ad0-4e43-b32b-dd36f942744a"
+
+# ─── R2 Bucket ────────────────────────────────────────────────────────────────
+[[r2_buckets]]
+binding     = "PHOTOS"
+bucket_name = "limitky-photos"
+
+# ─── Secrets (set via: wrangler secret put API_SECRET) ───────────────────────
+# API_SECRET — voliteľný API kľúč, nastav cez: wrangler secret put API_SECRET
+
+# ─── CORS origins ─────────────────────────────────────────────────────────────
+[vars]
+ALLOWED_ORIGIN = "https://kolodiazhna-ux.github.io"

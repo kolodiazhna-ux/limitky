@@ -6,23 +6,14 @@
 <title>Limitky — Fotenie</title>
 
 <!-- ╔══════════════════════════════════════════════════════════════╗ -->
-<!-- ║  FIREBASE CONFIG — vyplň po vytvorení projektu na           ║ -->
-<!-- ║  https://console.firebase.google.com                        ║ -->
+<!-- ║  CLOUDFLARE WORKER CONFIG                                    ║ -->
+<!-- ║  1. wrangler deploy  →  skopíruj URL workera                 ║ -->
+<!-- ║  2. Nastav WORKER_URL nižšie                                  ║ -->
 <!-- ╚══════════════════════════════════════════════════════════════╝ -->
 <script>
-  window.FIREBASE_CONFIG = {
-    apiKey:            "AIzaSyBnlnd0Uyj7_U5LlMIZINvn5653DE3tyTM",
-    authDomain:        "drlimitky.firebaseapp.com",
-    databaseURL:       "https://drlimitky-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId:         "drlimitky",
-    storageBucket:     "drlimitky.firebasestorage.app",
-    messagingSenderId: "773172452617",
-    appId:             "1:773172452617:web:f37802c1821f6abc2307d8"
-  };
+  window.WORKER_URL    = 'https://limitky-api.kolodiazhna.workers.dev';
+  window.WORKER_API_KEY = '';   // voliteľný — nastav ak použiješ API_SECRET
 </script>
-
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
 <style>
   :root {
@@ -247,9 +238,8 @@
 
 <!-- SETUP BANNER -->
 <div class="setup-banner" id="setupBanner">
-  <strong>⚙️ Nastav Firebase — dáta sa neukladajú!</strong>
-  Otvor súbor <code>products.html</code>, nájdi <code>window.FIREBASE_CONFIG</code> a vlož svoju konfiguráciu z Firebase Console.
-  <a href="https://console.firebase.google.com" target="_blank" style="color:var(--purple);font-weight:600">→ Otvoriť Firebase Console</a>
+  <strong>⚙️ Nastav Cloudflare Worker — dáta sa neukladajú!</strong>
+  Otvor súbor <code>products.html</code>, nájdi <code>window.WORKER_URL</code> a vlož URL svojho nasadeného Workera.
 </div>
 
 <div class="header">
@@ -426,39 +416,139 @@
 </div>
 
 <script>
-// ─── FIREBASE INIT ────────────────────────────────────────────────────────────
-const cfg = window.FIREBASE_CONFIG;
-const isConfigured = cfg && !cfg.apiKey.startsWith('PASTE');
+// ─── CLOUDFLARE WORKER INIT ───────────────────────────────────────────────────
+const WORKER_URL    = (window.WORKER_URL    || '').replace(/\/$/, '');
+const WORKER_API_KEY = window.WORKER_API_KEY || '';
+const isConfigured  = !!WORKER_URL && !WORKER_URL.includes('YOUR_SUBDOMAIN');
 
-let db = null;
-let productsRef = null;
-let recentRef = null;
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let products = {};
+let recentCodes = [];
+let currentFilter  = 'all';
+let currentView    = 'grid';
+let currentSection = 'main';
+let editingId      = null;
+let currentPhotoBase64 = null;
+let currentPhotoIsNew  = false;
 
-if (isConfigured) {
-  firebase.initializeApp(cfg);
-  db = firebase.database();
-  productsRef = db.ref('products');
-  recentRef   = db.ref('recentCodes');
-} else {
+if (!isConfigured) {
   document.getElementById('setupBanner').classList.add('visible');
   setSyncStatus('offline', 'Nie je nakonfigurované');
   document.getElementById('loaderOverlay').classList.add('hidden');
+  try {
+    products    = JSON.parse(localStorage.getItem('limitky_products') || '{}');
+    recentCodes = JSON.parse(localStorage.getItem('limitky_recent')   || '[]');
+  } catch(e) { products = {}; recentCodes = []; }
 }
 
-// ─── STATE ────────────────────────────────────────────────────────────────────
-let products = {};        // keyed by Firebase key
-let recentCodes = [];
-let currentFilter = 'all';
-let currentView   = 'grid';
-let currentSection = 'main';
-let editingId     = null;
-let currentPhotoBase64 = null;
+// ─── API HELPERS ──────────────────────────────────────────────────────────────
+async function apiFetch(path, method = 'GET', body = null) {
+  const opts = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(WORKER_API_KEY ? { 'X-API-Key': WORKER_API_KEY } : {}),
+    },
+  };
+  if (body !== null) opts.body = JSON.stringify(body);
+  const res = await fetch(WORKER_URL + path, opts);
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+  if (res.status === 204) return null;
+  return res.json();
+}
 
-if (!isConfigured) {
+async function apiUploadPhoto(id, blob) {
+  const res = await fetch(`${WORKER_URL}/api/products/${id}/photo`, {
+    method:  'POST',
+    headers: {
+      'Content-Type': 'image/jpeg',
+      ...(WORKER_API_KEY ? { 'X-API-Key': WORKER_API_KEY } : {}),
+    },
+    body: blob,
+  });
+  if (!res.ok) throw new Error(`Photo upload ${res.status}`);
+  return res.json();
+}
+
+function b64toBlob(b64) {
+  const [header, data] = b64.split(',');
+  const mime = (header.match(/:(.*?);/) || [,'image/jpeg'])[1];
+  const bytes = atob(data);
+  const arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+// ─── DATA LOADING ─────────────────────────────────────────────────────────────
+async function loadProducts() {
+  if (!isConfigured) return;
+  const data = await apiFetch('/api/products');
+  products = {};
+  data.forEach(p => {
+    products[p.id] = {
+      ...p,
+      archived:  !!p.archived,
+      deleted:   !!p.deleted,
+      createdAt: p.created_at,
+      updatedAt: p.updated_at,
+      photo: p.photo_key
+        ? `${WORKER_URL}/api/products/${p.id}/photo`
+        : null,
+    };
+  });
+  renderProducts();
+  document.getElementById('loaderOverlay').classList.add('hidden');
+}
+
+async function loadRecent() {
+  if (!isConfigured) return;
+  recentCodes = await apiFetch('/api/recent');
+  renderRecentBar();
+}
+
+// ─── WRITE HELPERS ────────────────────────────────────────────────────────────
+async function apiSetProduct(key, p) {
+  if (!isConfigured) return;
+  setSyncStatus('syncing', 'Ukladám…');
+  const payload = { ...p };
+  delete payload.photo;   // foto je v R2, nie v D1
+  delete payload._key;
   try {
-    products = JSON.parse(localStorage.getItem('limitky_products') || '{}');
-    recentCodes = JSON.parse(localStorage.getItem('limitky_recent') || '[]');
-  } catch(e) { products = {}; recentCodes = []; }
+    await apiFetch(`/api/products/${key}`, 'PUT', payload);
+    setSyncStatus('online', 'Uložené');
+  } catch(e) {
+    setSyncStatus('offline', 'Chyba uloženia');
+    console.error(e);
+  }
+}
+
+async function apiRemoveProduct(key) {
+  if (!isConfigured) return;
+  await apiFetch(`/api/products/${key}`, 'DELETE');
+}
+
+async function apiUpdateRecent(codes) {
+  if (!isConfigured) return;
+  await apiFetch('/api/recent', 'PUT', codes);
+}
+
+// ─── INIT + POLLING ───────────────────────────────────────────────────────────
+async function initApp() {
+  if (!isConfigured) { renderProducts(); renderRecentBar(); return; }
+  setSyncStatus('syncing', 'Načítavam…');
+  try {
+    await Promise.all([loadProducts(), loadRecent()]);
+    setSyncStatus('online', 'Online');
+    // Polling každých 30 sekúnd
+    setInterval(async () => {
+      await loadProducts();
+      await loadRecent();
+    }, 30000);
+  } catch(e) {
+    setSyncStatus('offline', 'Chyba pripojenia');
+    document.getElementById('loaderOverlay').classList.add('hidden');
+    console.error(e);
+  }
 }
 
 const STATUS_LABELS  = { stock:'Na sklade', preparing:'Bošany', sent:'U fotografa', returned:'Vrátené', published:'Na webe' };
@@ -474,46 +564,6 @@ function setSyncStatus(state, label) {
   lbl.textContent = label;
 }
 
-// ─── FIREBASE LISTENERS ───────────────────────────────────────────────────────
-if (isConfigured) {
-  db.ref('.info/connected').on('value', snap => {
-    if (snap.val()) setSyncStatus('online', 'Online');
-    else setSyncStatus('offline', 'Offline');
-  });
-
-  productsRef.on('value', snap => {
-    products = snap.val() || {};
-    renderProducts();
-    document.getElementById('loaderOverlay').classList.add('hidden');
-  });
-
-  recentRef.on('value', snap => {
-    recentCodes = snap.val() || [];
-    renderRecentBar();
-  });
-}
-
-// ─── WRITE HELPERS ────────────────────────────────────────────────────────────
-function fbSetProduct(id, data) {
-  if (!isConfigured) return;
-  setSyncStatus('syncing', 'Ukladám…');
-  productsRef.child(id).set(data).then(() => setSyncStatus('online', 'Uložené'));
-}
-
-function fbRemoveProduct(id) {
-  if (!isConfigured) {
-    delete products[id];
-    localStorage.setItem('limitky_products', JSON.stringify(products));
-    renderProducts();
-    return;
-  }
-  productsRef.child(id).remove();
-}
-
-function fbUpdateRecent(codes) {
-  if (!isConfigured) return;
-  recentRef.set(codes);
-}
 
 // ─── FILTER ───────────────────────────────────────────────────────────────────
 function filterByStatus(status) {
@@ -684,14 +734,15 @@ function renderTable(list) {
 }
 
 // ─── STATUS CHANGE ────────────────────────────────────────────────────────────
-function setStatus(key, status) {
+async function setStatus(key, status) {
   const p = products[key];
   if (!p) return;
   const newStatus = p.status === status ? 'stock' : status;
   const updated = { ...p, status: newStatus, updatedAt: new Date().toISOString() };
   products[key] = updated;
-  fbSetProduct(key, updated);
   renderProducts();
+  await apiSetProduct(key, updated);
+  if (!isConfigured) localStorage.setItem('limitky_products', JSON.stringify(products));
 }
 
 // ─── SECTION SWITCH ──────────────────────────────────────────────────────────
@@ -705,49 +756,50 @@ function switchSection(section) {
 }
 
 // ─── ARCHIVE / TRASH ─────────────────────────────────────────────────────────
-function archiveProduct(key) {
+async function archiveProduct(key) {
   const p = products[key];
   if (!p) return;
   p.archived = true;
   p.updatedAt = new Date().toISOString();
-  fbSetProduct(key, p);
-  if (!isConfigured) localStorage.setItem('limitky_products', JSON.stringify(products));
   renderProducts();
+  await apiSetProduct(key, p);
+  if (!isConfigured) localStorage.setItem('limitky_products', JSON.stringify(products));
 }
 
-function restoreProduct(key) {
+async function restoreProduct(key) {
   const p = products[key];
   if (!p) return;
-  delete p.archived;
-  delete p.deleted;
+  p.archived = false;
+  p.deleted  = false;
   p.updatedAt = new Date().toISOString();
-  fbSetProduct(key, p);
-  if (!isConfigured) localStorage.setItem('limitky_products', JSON.stringify(products));
   renderProducts();
+  await apiSetProduct(key, p);
+  if (!isConfigured) localStorage.setItem('limitky_products', JSON.stringify(products));
 }
 
-function trashProduct(key) {
+async function trashProduct(key) {
   const p = products[key];
   if (!p) return;
   p.deleted = true;
   p.updatedAt = new Date().toISOString();
-  fbSetProduct(key, p);
-  if (!isConfigured) localStorage.setItem('limitky_products', JSON.stringify(products));
   renderProducts();
+  await apiSetProduct(key, p);
+  if (!isConfigured) localStorage.setItem('limitky_products', JSON.stringify(products));
 }
 
-function permanentDelete(key) {
+async function permanentDelete(key) {
   if (!confirm('Vymazať produkt navždy? Táto akcia je nezvratná.')) return;
   delete products[key];
-  fbRemoveProduct(key);
-  if (!isConfigured) localStorage.setItem('limitky_products', JSON.stringify(products));
   renderProducts();
+  await apiRemoveProduct(key);
+  if (!isConfigured) localStorage.setItem('limitky_products', JSON.stringify(products));
 }
 
 // ─── MODAL ────────────────────────────────────────────────────────────────────
 function openAddModal() {
   editingId = null;
   currentPhotoBase64 = null;
+  currentPhotoIsNew  = false;
   document.getElementById('modalTitle').textContent = 'Nový produkt';
   ['fieldCode','fieldName','fieldQty','fieldPrice','fieldMiesto','fieldNote','fieldPoznamka'].forEach(id => document.getElementById(id).value = '');
   updateNamePreview();
@@ -766,7 +818,8 @@ function openEditModal(key) {
   const p = products[key];
   if (!p) return;
   editingId = key;
-  currentPhotoBase64 = p.photo || null;
+  currentPhotoBase64 = p.photo || null;   // URL alebo null
+  currentPhotoIsNew  = false;
   document.getElementById('modalTitle').textContent = 'Editovať produkt';
   document.getElementById('fieldCode').value  = p.code  || '';
   document.getElementById('fieldName').value  = p.name  || '';
@@ -792,37 +845,69 @@ function openEditModal(key) {
 function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
 function handleOverlayClick(e) { if (e.target.id === 'modalOverlay') closeModal(); }
 
-function saveProduct() {
+async function saveProduct() {
   const code = document.getElementById('fieldCode').value.trim().toUpperCase();
   const name = document.getElementById('fieldName').value.trim();
   if (!code || !name) { alert('Kód a názov sú povinné'); return; }
   const now = new Date().toISOString();
   const data = {
     code, name,
-    qty:    document.getElementById('fieldQty').value   || '',
-    price:  document.getElementById('fieldPrice').value || '',
-    miesto: document.getElementById('fieldMiesto').value.trim(),
-    date:   document.getElementById('fieldDate').value,
-    note:   document.getElementById('fieldNote').value.trim(),
-    poznamka: document.getElementById('fieldPoznamka').value.trim(),
-    status: document.getElementById('fieldStatus').value,
-    photo:  currentPhotoBase64 || null,
-    updatedAt: now,
-    createdAt: editingId ? (products[editingId]?.createdAt || now) : now
+    qty:       document.getElementById('fieldQty').value    || '',
+    price:     document.getElementById('fieldPrice').value  || '',
+    miesto:    document.getElementById('fieldMiesto').value.trim(),
+    date:      document.getElementById('fieldDate').value,
+    note:      document.getElementById('fieldNote').value.trim(),
+    poznamka:  document.getElementById('fieldPoznamka').value.trim(),
+    status:    document.getElementById('fieldStatus').value,
+    archived:  editingId ? (products[editingId]?.archived ? 1 : 0) : 0,
+    deleted:   0,
+    updated_at: now,
+    created_at: editingId ? (products[editingId]?.created_at || products[editingId]?.createdAt || now) : now,
   };
-  const key = editingId || (isConfigured ? productsRef.push().key : 'local_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
-  products[key] = data;
-  fbSetProduct(key, data);
-  // update recent codes
-  const newRecent = [code, ...recentCodes.filter(c => c !== code)].slice(0, 8);
+
   if (!isConfigured) {
-    localStorage.setItem('limitky_products', JSON.stringify(products));
+    const key = editingId || ('local_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
+    products[key] = { ...data, photo: currentPhotoBase64 || null, createdAt: data.created_at, updatedAt: data.updated_at };
+    const newRecent = [code, ...recentCodes.filter(c => c !== code)].slice(0, 8);
     recentCodes = newRecent;
+    localStorage.setItem('limitky_products', JSON.stringify(products));
     localStorage.setItem('limitky_recent', JSON.stringify(recentCodes));
+    closeModal();
+    renderProducts();
+    renderRecentBar();
+    return;
   }
-  fbUpdateRecent(newRecent);
-  closeModal();
-  renderProducts();
+
+  setSyncStatus('syncing', 'Ukladám…');
+  try {
+    let id;
+    if (editingId) {
+      id = editingId;
+      await apiFetch(`/api/products/${id}`, 'PUT', data);
+    } else {
+      const res = await apiFetch('/api/products', 'POST', data);
+      id = res.id;
+    }
+
+    // Nahraj nové foto do R2 ak bolo vybrané
+    if (currentPhotoIsNew && currentPhotoBase64) {
+      const blob = b64toBlob(currentPhotoBase64);
+      await apiUploadPhoto(id, blob);
+    }
+
+    // Aktualizuj nedávne kódy
+    const newRecent = [code, ...recentCodes.filter(c => c !== code)].slice(0, 8);
+    await apiUpdateRecent(newRecent);
+    recentCodes = newRecent;
+
+    setSyncStatus('online', 'Uložené');
+    closeModal();
+    await loadProducts();
+    renderRecentBar();
+  } catch(e) {
+    setSyncStatus('offline', 'Chyba uloženia');
+    console.error(e);
+  }
 }
 
 // ─── PHOTO ────────────────────────────────────────────────────────────────────
@@ -846,6 +931,7 @@ function handlePhotoChange(e) {
   if (!file) return;
   compressImage(file, 900, 0.75, b64 => {
     currentPhotoBase64 = b64;
+    currentPhotoIsNew  = true;
     const prev = document.getElementById('photoPreview');
     prev.src = b64; prev.classList.add('visible');
     document.getElementById('uploadHint').style.display = 'none';
@@ -858,13 +944,29 @@ function quickPhoto(key) {
   input.onchange = e => {
     const file = e.target.files[0];
     if (!file) return;
-    compressImage(file, 900, 0.75, b64 => {
+    compressImage(file, 900, 0.75, async b64 => {
       const p = products[key];
       if (!p) return;
-      const updated = { ...p, photo: b64, updatedAt: new Date().toISOString() };
-      products[key] = updated;
-      fbSetProduct(key, updated);
-      renderProducts();
+      if (!isConfigured) {
+        const updated = { ...p, photo: b64, updatedAt: new Date().toISOString() };
+        products[key] = updated;
+        localStorage.setItem('limitky_products', JSON.stringify(products));
+        renderProducts();
+        return;
+      }
+      setSyncStatus('syncing', 'Nahrávam foto…');
+      try {
+        const blob = b64toBlob(b64);
+        await apiUploadPhoto(key, blob);
+        // Pridaj cache-buster aby prehliadač nenačítal starý obrázok
+        products[key].photo     = `${WORKER_URL}/api/products/${key}/photo?t=${Date.now()}`;
+        products[key].photo_key = `photos/${key}.jpg`;
+        setSyncStatus('online', 'Uložené');
+        renderProducts();
+      } catch(err) {
+        setSyncStatus('offline', 'Chyba nahrávania');
+        console.error(err);
+      }
     });
   };
   input.click();
@@ -975,8 +1077,7 @@ function exportPDF() {
   win.print();
 }
 
-// Init render (for non-firebase mode)
-if (!isConfigured) { renderProducts(); renderRecentBar(); }
+initApp();
 </script>
 </body>
 </html>
