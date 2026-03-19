@@ -547,7 +547,8 @@ async function submitAuth() {
     errEl.textContent = 'Chyba pripojenia: ' + e.message;
   } finally {
     btn.disabled = false;
-    if (authMode !== 'reset') switchAuthTab(authMode);
+    const labels = { login: 'Prihlásiť sa', register: 'Zaregistrovať sa', reset: 'Zmeniť heslo' };
+    btn.textContent = labels[authMode] || 'OK';
   }
 }
 
