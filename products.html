@@ -226,9 +226,46 @@
   .empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; }
 
   .hidden { display: none !important; }
+
+  /* AUTH OVERLAY */
+  .auth-overlay { position: fixed; inset: 0; background: var(--gray); z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .auth-overlay.hidden { display: none; }
+  .auth-card { background: white; border-radius: 20px; padding: 32px 24px; width: 100%; max-width: 380px; box-shadow: var(--shadow-lg); }
+  .auth-logo { font-size: 36px; text-align: center; margin-bottom: 8px; }
+  .auth-title { font-size: 22px; font-weight: 700; text-align: center; margin-bottom: 4px; }
+  .auth-subtitle { font-size: 14px; color: var(--gray3); text-align: center; margin-bottom: 24px; }
+  .auth-tabs { display: flex; background: var(--gray); border-radius: 10px; padding: 3px; margin-bottom: 20px; }
+  .auth-tab { flex: 1; padding: 8px; border: none; background: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; color: var(--gray3); transition: all 0.15s; }
+  .auth-tab.active { background: white; color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+  .auth-input { width: 100%; border: 1.5px solid var(--gray2); border-radius: 10px; padding: 12px 14px; font-size: 15px; outline: none; margin-bottom: 10px; transition: border 0.15s; }
+  .auth-input:focus { border-color: var(--purple); }
+  .auth-btn { width: 100%; background: var(--purple); color: white; border: none; border-radius: 12px; padding: 14px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 4px; transition: opacity 0.15s; }
+  .auth-btn:active { opacity: 0.85; }
+  .auth-error { color: var(--red); font-size: 13px; text-align: center; margin-top: 10px; min-height: 18px; }
+
+  /* LOGOUT BUTTON */
+  .logout-btn { border: none; background: none; color: var(--gray3); font-size: 13px; cursor: pointer; padding: 4px 8px; border-radius: 8px; }
+  .logout-btn:active { background: var(--gray2); }
 </style>
 </head>
 <body>
+
+<!-- AUTH OVERLAY -->
+<div class="auth-overlay hidden" id="authOverlay">
+  <div class="auth-card">
+    <div class="auth-logo">👜</div>
+    <div class="auth-title">Limitky</div>
+    <div class="auth-subtitle">Správa produktov</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Prihlásiť sa</button>
+      <button class="auth-tab" id="tabRegister" onclick="switchAuthTab('register')">Registrácia</button>
+    </div>
+    <input class="auth-input" id="authEmail" type="email" placeholder="Email" autocomplete="email">
+    <input class="auth-input" id="authPassword" type="password" placeholder="Heslo (min. 6 znakov)" autocomplete="current-password">
+    <button class="auth-btn" id="authBtn" onclick="submitAuth()">Prihlásiť sa</button>
+    <div class="auth-error" id="authError"></div>
+  </div>
+</div>
 
 <!-- LOADER -->
 <div class="loader-overlay" id="loaderOverlay">
@@ -255,6 +292,7 @@
       <button class="view-btn active" id="btnGrid" onclick="setView('grid')">⊞</button>
       <button class="view-btn" id="btnTable" onclick="setView('table')">≡</button>
       <button class="view-btn" onclick="exportPDF()" title="Export PDF">📄</button>
+      <button class="logout-btn" id="logoutBtn" onclick="logout()" title="Odhlásiť sa" style="display:none">↩</button>
     </div>
   </div>
 </div>
@@ -421,6 +459,67 @@ const WORKER_URL    = (window.WORKER_URL    || '').replace(/\/$/, '');
 const WORKER_API_KEY = window.WORKER_API_KEY || '';
 const isConfigured  = !!WORKER_URL && !WORKER_URL.includes('YOUR_SUBDOMAIN');
 
+// ─── AUTH TOKEN ───────────────────────────────────────────────────────────────
+function getToken()         { return localStorage.getItem('limitky_token'); }
+function setToken(t)        { localStorage.setItem('limitky_token', t); }
+function clearToken()       { localStorage.removeItem('limitky_token'); }
+
+let authMode = 'login'; // 'login' | 'register'
+
+function switchAuthTab(mode) {
+  authMode = mode;
+  document.getElementById('tabLogin').classList.toggle('active', mode === 'login');
+  document.getElementById('tabRegister').classList.toggle('active', mode === 'register');
+  document.getElementById('authBtn').textContent = mode === 'login' ? 'Prihlásiť sa' : 'Zaregistrovať sa';
+  document.getElementById('authError').textContent = '';
+  document.getElementById('authPassword').placeholder = mode === 'login' ? 'Heslo' : 'Heslo (min. 6 znakov)';
+}
+
+async function submitAuth() {
+  const email    = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const errEl    = document.getElementById('authError');
+  const btn      = document.getElementById('authBtn');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = 'Vyplň email a heslo'; return; }
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    const path = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+    const res  = await fetch(WORKER_URL + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Chyba'; return; }
+    setToken(data.token);
+    document.getElementById('authOverlay').classList.add('hidden');
+    document.getElementById('logoutBtn').style.display = '';
+    initApp();
+  } catch(e) {
+    errEl.textContent = 'Chyba pripojenia';
+  } finally {
+    btn.disabled = false;
+    switchAuthTab(authMode);
+  }
+}
+
+function logout() {
+  clearToken();
+  document.getElementById('logoutBtn').style.display = 'none';
+  document.getElementById('authOverlay').classList.remove('hidden');
+  document.getElementById('authEmail').value = '';
+  document.getElementById('authPassword').value = '';
+}
+
+// Enter key support for auth form
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !document.getElementById('authOverlay').classList.contains('hidden')) {
+    submitAuth();
+  }
+});
+
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let products = {};
 let recentCodes = [];
@@ -442,16 +541,22 @@ if (!isConfigured) {
 }
 
 // ─── API HELPERS ──────────────────────────────────────────────────────────────
+function authHeader() {
+  const token = getToken();
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
 async function apiFetch(path, method = 'GET', body = null) {
   const opts = {
     method,
     headers: {
       'Content-Type': 'application/json',
-      ...(WORKER_API_KEY ? { 'X-API-Key': WORKER_API_KEY } : {}),
+      ...authHeader(),
     },
   };
   if (body !== null) opts.body = JSON.stringify(body);
   const res = await fetch(WORKER_URL + path, opts);
+  if (res.status === 401) { logout(); return; }
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
   if (res.status === 204) return null;
   return res.json();
@@ -460,10 +565,7 @@ async function apiFetch(path, method = 'GET', body = null) {
 async function apiUploadPhoto(id, blob) {
   const res = await fetch(`${WORKER_URL}/api/products/${id}/photo`, {
     method:  'POST',
-    headers: {
-      'Content-Type': 'image/jpeg',
-      ...(WORKER_API_KEY ? { 'X-API-Key': WORKER_API_KEY } : {}),
-    },
+    headers: { 'Content-Type': 'image/jpeg', ...authHeader() },
     body: blob,
   });
   if (!res.ok) throw new Error(`Photo upload ${res.status}`);
@@ -535,6 +637,15 @@ async function apiUpdateRecent(codes) {
 // ─── INIT + POLLING ───────────────────────────────────────────────────────────
 async function initApp() {
   if (!isConfigured) { renderProducts(); renderRecentBar(); return; }
+
+  // Show login if no token
+  if (!getToken()) {
+    document.getElementById('authOverlay').classList.remove('hidden');
+    document.getElementById('loaderOverlay').classList.add('hidden');
+    return;
+  }
+  document.getElementById('logoutBtn').style.display = '';
+
   setSyncStatus('syncing', 'Načítavam…');
   try {
     await Promise.all([loadProducts(), loadRecent()]);
