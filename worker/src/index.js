@@ -151,6 +151,24 @@ export default {
         return json({ token, email: email.toLowerCase() }, 201, cors);
       }
 
+      // ── POST /api/auth/reset-password ─────────────────────────────────────
+      if (method === 'POST' && path === '/api/auth/reset-password') {
+        const { email, new_password } = await request.json();
+        if (!email || !new_password) return err('Email and new_password required', 400, cors);
+        if (new_password.length < 6)  return err('Password too short (min 6)', 400, cors);
+
+        const user = await env.DB.prepare(
+          'SELECT id FROM users WHERE email = ?'
+        ).bind(email.toLowerCase()).first();
+        if (!user) return err('Email nie je zaregistrovaný', 404, cors);
+
+        const hash = await hashPassword(new_password);
+        await env.DB.prepare(
+          'UPDATE users SET password_hash = ? WHERE email = ?'
+        ).bind(hash, email.toLowerCase()).run();
+        return json({ ok: true }, 200, cors);
+      }
+
       // ── POST /api/auth/login ───────────────────────────────────────────────
       if (method === 'POST' && path === '/api/auth/login') {
         const { email, password } = await request.json();

@@ -259,9 +259,11 @@
     <div class="auth-tabs">
       <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Prihlásiť sa</button>
       <button class="auth-tab" id="tabRegister" onclick="switchAuthTab('register')">Registrácia</button>
+      <button class="auth-tab" id="tabReset" onclick="switchAuthTab('reset')">Zmeniť heslo</button>
     </div>
     <input class="auth-input" id="authEmail" type="email" placeholder="Email" autocomplete="email">
-    <input class="auth-input" id="authPassword" type="password" placeholder="Heslo (min. 6 znakov)" autocomplete="current-password">
+    <input class="auth-input" id="authPassword" type="password" placeholder="Heslo" autocomplete="current-password">
+    <input class="auth-input hidden" id="authNewPassword" type="password" placeholder="Nové heslo (min. 6 znakov)">
     <button class="auth-btn" id="authBtn" onclick="submitAuth()">Prihlásiť sa</button>
     <div class="auth-error" id="authError"></div>
   </div>
@@ -470,20 +472,64 @@ function switchAuthTab(mode) {
   authMode = mode;
   document.getElementById('tabLogin').classList.toggle('active', mode === 'login');
   document.getElementById('tabRegister').classList.toggle('active', mode === 'register');
-  document.getElementById('authBtn').textContent = mode === 'login' ? 'Prihlásiť sa' : 'Zaregistrovať sa';
+  document.getElementById('tabReset').classList.toggle('active', mode === 'reset');
   document.getElementById('authError').textContent = '';
-  document.getElementById('authPassword').placeholder = mode === 'login' ? 'Heslo' : 'Heslo (min. 6 znakov)';
+  const pwEl    = document.getElementById('authPassword');
+  const newPwEl = document.getElementById('authNewPassword');
+  if (mode === 'login') {
+    document.getElementById('authBtn').textContent = 'Prihlásiť sa';
+    pwEl.placeholder = 'Heslo';
+    pwEl.classList.remove('hidden');
+    newPwEl.classList.add('hidden');
+  } else if (mode === 'register') {
+    document.getElementById('authBtn').textContent = 'Zaregistrovať sa';
+    pwEl.placeholder = 'Heslo (min. 6 znakov)';
+    pwEl.classList.remove('hidden');
+    newPwEl.classList.add('hidden');
+  } else {
+    document.getElementById('authBtn').textContent = 'Zmeniť heslo';
+    pwEl.placeholder = 'Staré heslo (ak poznáš) — môžeš nechať prázdne';
+    pwEl.classList.add('hidden');
+    newPwEl.classList.remove('hidden');
+  }
 }
 
 async function submitAuth() {
   const email    = document.getElementById('authEmail').value.trim();
   const password = document.getElementById('authPassword').value;
+  const newPw    = document.getElementById('authNewPassword').value;
   const errEl    = document.getElementById('authError');
   const btn      = document.getElementById('authBtn');
   errEl.textContent = '';
-  if (!email || !password) { errEl.textContent = 'Vyplň email a heslo'; return; }
-  btn.disabled = true;
-  btn.textContent = '…';
+  errEl.style.color = 'var(--red)';
+
+  if (!email) { errEl.textContent = 'Zadaj email'; return; }
+
+  if (authMode === 'reset') {
+    if (!newPw || newPw.length < 6) { errEl.textContent = 'Nové heslo musí mať aspoň 6 znakov'; return; }
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      const res  = await fetch(WORKER_URL + '/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, new_password: newPw }),
+      });
+      const data = await res.json();
+      if (!res.ok) { errEl.textContent = data.error || 'Chyba'; return; }
+      errEl.style.color = 'var(--green)';
+      errEl.textContent = 'Heslo zmenené! Prihlás sa.';
+      document.getElementById('authNewPassword').value = '';
+      switchAuthTab('login');
+    } catch(e) {
+      errEl.textContent = 'Chyba pripojenia: ' + e.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Zmeniť heslo';
+    }
+    return;
+  }
+
+  if (!password) { errEl.textContent = 'Zadaj heslo'; return; }
+  btn.disabled = true; btn.textContent = '…';
   try {
     const path = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
     const res  = await fetch(WORKER_URL + path, {
@@ -498,10 +544,10 @@ async function submitAuth() {
     document.getElementById('logoutBtn').style.display = '';
     initApp();
   } catch(e) {
-    errEl.textContent = 'Chyba pripojenia';
+    errEl.textContent = 'Chyba pripojenia: ' + e.message;
   } finally {
     btn.disabled = false;
-    switchAuthTab(authMode);
+    if (authMode !== 'reset') switchAuthTab(authMode);
   }
 }
 
