@@ -18,4 +18,4 @@ bucket_name = "limitky-photos"
 
 # ─── CORS origins ─────────────────────────────────────────────────────────────
 [vars]
-ALLOWED_ORIGIN = "https://kolodiazhna-ux.github.io"
+ALLOWED_ORIGIN = "*"
