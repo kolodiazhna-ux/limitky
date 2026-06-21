@@ -1,0 +1,40 @@
+@font-face {
+  font-family: "Dajana Rodriguez Serif";
+  src: url("./DajanaRodriguezSerif-Thin.woff2") format("woff2"),
+       url("./DajanaRodriguezSerif-Thin.woff") format("woff");
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Dajana Rodriguez Serif";
+  src: url("./DajanaRodriguezSerif-Light.woff2") format("woff2"),
+       url("./DajanaRodriguezSerif-Light.woff") format("woff");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Dajana Rodriguez Serif";
+  src: url("./DajanaRodriguezSerif-Regular.woff2") format("woff2"),
+       url("./DajanaRodriguezSerif-Regular.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Dajana Rodriguez Serif";
+  src: url("./DajanaRodriguezSerif-Bold.woff2") format("woff2"),
+       url("./DajanaRodriguezSerif-Bold.woff") format("woff");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Dajana Rodriguez Serif";
+  src: url("./DajanaRodriguezSerif-ExtraBold.woff2") format("woff2"),
+       url("./DajanaRodriguezSerif-ExtraBold.woff") format("woff");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}

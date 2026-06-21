@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dajana Rodriguez — Sklad / Inventár</title>
+  <link rel="icon" href="./assets/symbol/purple.svg" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="./assets/logo/white.svg" alt="Dajana Rodriguez" />
+      <div class="titles">
+        <h1>Sklad &amp; Inventár</h1>
+        <p>Style with a story</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="presence">
+        <span class="dot"></span>
+        <span id="presenceText">3 online</span>
+      </div>
+      <div class="avatars" id="avatars"></div>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="searchInput" type="text" placeholder="Hľadať podľa kódu, názvu, popisu…" />
+    </div>
+    <select class="filter" id="placeFilter"><option value="">Všetky miesta výroby</option></select>
+    <select class="filter" id="stockFilter">
+      <option value="">Všetky zásoby</option>
+      <option value="ok">Na sklade</option>
+      <option value="low">Nízke zásoby (≤3)</option>
+      <option value="out">Vypredané (0)</option>
+    </select>
+    <div class="spacer"></div>
+    <button class="btn btn-ghost" id="exportBtn">Export CSV</button>
+    <button class="btn btn-primary" id="addBtn">+ Nový produkt</button>
+  </div>
+
+  <div class="view-tabs" id="viewTabs"></div>
+
+  <section class="stats" id="stats"></section>
+
+  <section class="charts" id="charts">
+    <div class="chart-card">
+      <h3>Stav zásob</h3>
+      <div class="donut-row">
+        <div class="donut" id="donutStock"></div>
+        <ul class="legend" id="legendStock"></ul>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>Hodnota skladu podľa kolekcie</h3>
+      <div class="bars" id="barsValue"></div>
+    </div>
+    <div class="chart-card">
+      <h3>Počet kusov podľa kolekcie</h3>
+      <div class="bars" id="barsQty"></div>
+    </div>
+  </section>
+
+  <div class="table-wrap">
+    <table>
+      <colgroup>
+        <col style="width:3%" />
+        <col style="width:6%" />
+        <col style="width:10%" />
+        <col style="width:4%" />
+        <col style="width:7%" />
+        <col style="width:4%" />
+        <col style="width:7%" />
+        <col style="width:5%" />
+        <col style="width:4%" />
+        <col style="width:8%" />
+        <col style="width:6%" />
+        <col style="width:4%" />
+        <col style="width:4%" />
+        <col style="width:6%" />
+        <col style="width:9%" />
+        <col style="width:4%" />
+        <col style="width:6%" />
+        <col style="width:3%" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th class="no-sort sel-th"><input type="checkbox" id="selAll" title="Vybrať všetko" /></th>
+          <th data-sort="code">Kód <span class="arrow"></span></th>
+          <th data-sort="name">Názov produktu <span class="arrow"></span></th>
+          <th class="no-sort">Fotka</th>
+          <th data-sort="photoStatus">Stav fotenia <span class="arrow"></span></th>
+          <th class="no-sort">Fotky</th>
+          <th data-sort="qty">Počet ks <span class="arrow"></span></th>
+          <th data-sort="place">Výroba <span class="arrow"></span></th>
+          <th data-sort="kovanie">Kovanie <span class="arrow"></span></th>
+          <th data-sort="status">Stav <span class="arrow"></span></th>
+          <th class="no-sort">Č. presunu</th>
+          <th class="no-sort">Web SK</th>
+          <th class="no-sort">Web CZ</th>
+          <th data-sort="date">Dátum <span class="arrow"></span></th>
+          <th class="no-sort">Popis</th>
+          <th data-sort="price">Cena <span class="arrow"></span></th>
+          <th class="no-sort">Poznámka</th>
+          <th class="no-sort"></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+      <tfoot id="tfoot"></tfoot>
+    </table>
+    <div class="empty-state" id="emptyState" style="display:none">
+      <h3>Žiadne produkty</h3>
+      <p>Pridajte prvý produkt alebo zmeňte filter.</p>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-bg" id="modalBg">
+    <div class="modal">
+      <h2 id="modalTitle">Nový produkt</h2>
+      <input type="hidden" id="f-id" />
+      <div class="form-grid">
+        <div class="field">
+          <label>Kód</label>
+          <input id="f-code" placeholder="napr. MIALIM72" />
+        </div>
+        <div class="field">
+          <label>Cena (€)</label>
+          <input id="f-price" type="number" step="1" placeholder="285" />
+        </div>
+        <div class="field full">
+          <label>Názov produktu</label>
+          <input id="f-name" placeholder="Mia Limitka 72 Zlatá" />
+        </div>
+        <div class="field">
+          <label>Počet ks</label>
+          <input id="f-qty" type="number" step="1" placeholder="3" />
+        </div>
+        <div class="field">
+          <label>Miesto výroby</label>
+          <input id="f-place" placeholder="RRR" />
+        </div>
+        <div class="field">
+          <label>Dátum uverejnenia</label>
+          <input id="f-date" type="date" />
+        </div>
+        <div class="field">
+          <label>Kovanie</label>
+          <select id="f-kovanie"></select>
+        </div>
+        <div class="field">
+          <label>Stav</label>
+          <select id="f-status"></select>
+        </div>
+        <div class="field">
+          <label>Číslo presunu</label>
+          <input id="f-transfer" placeholder="napr. P-2026-014" />
+        </div>
+        <div class="field">
+          <label>Stav fotenia</label>
+          <select id="f-photoStatus"></select>
+        </div>
+        <div class="field">
+          <label>Odkaz na fotky</label>
+          <input id="f-photoLink" type="url" placeholder="https://drive.google.com/…" />
+        </div>
+        <div class="field">
+          <label>Web SK (odkaz)</label>
+          <input id="f-webSk" type="url" placeholder="https://dajanarodriguez.sk/…" />
+        </div>
+        <div class="field">
+          <label>Web CZ (odkaz)</label>
+          <input id="f-webCz" type="url" placeholder="https://dajanarodriguez.cz/…" />
+        </div>
+        <div class="field">
+          <label>Popis</label>
+          <input id="f-desc" placeholder="zlatá s výšivkou" />
+        </div>
+        <div class="field full">
+          <label>Poznámka</label>
+          <textarea id="f-note" placeholder="interná poznámka…"></textarea>
+        </div>
+        <div class="field full">
+          <label>Fotka</label>
+          <label class="photo-drop" id="photoDrop">
+            <div id="photoPreview">Kliknite pre nahratie fotky</div>
+            <input type="file" id="f-photo" accept="image/*" hidden />
+          </label>
+          <button type="button" class="btn btn-ghost" id="photoRemoveBtn" style="display:none;margin-top:8px;">Vymazať fotku</button>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="cancelBtn">Zrušiť</button>
+        <button class="btn btn-primary" id="saveBtn">Uložiť</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="row-menu" id="rowMenu"></div>
+
+  <div class="bulk-bar" id="bulkBar"></div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
