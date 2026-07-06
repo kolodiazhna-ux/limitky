@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Limitky — Fotenie</title>
+<title>Dajana Rodriguez — Fotenie</title>
+<link rel="icon" href="./assets/symbol/purple.svg">
+<link rel="stylesheet" href="./assets/fonts/fonts.css">
 
 <!-- ╔══════════════════════════════════════════════════════════════╗ -->
 <!-- ║  Stránka je servovaná priamo Cloudflare Workerom,            ║ -->
@@ -16,23 +18,28 @@
 
 <style>
   :root {
-    --green: #00C851;
-    --orange: #FF8800;
+    /* Dajana Rodriguez brand palette */
+    --green: #2e9e6b;
+    --orange: #d68910;
     --blue: #2979FF;
-    --red: #FF3D3D;
-    --purple: #7B2D8B;
+    --red: #c0392b;
+    --purple: #753BBD;
+    --purple-dark: #512D6D;
+    --purple-light: #C1A7E2;
     --teal: #00BCD4;
-    --gray: #F2F2F7;
-    --gray2: #E5E5EA;
-    --gray3: #8E8E93;
-    --text: #1C1C1E;
+    --gray: #EAE7ED;
+    --gray2: #ddd6e4;
+    --gray3: #8a7f95;
+    --text: #2a2230;
     --white: #FFFFFF;
     --radius: 14px;
-    --shadow: 0 2px 12px rgba(0,0,0,0.10);
-    --shadow-lg: 0 8px 32px rgba(0,0,0,0.15);
+    --shadow: 0 8px 30px rgba(81,45,109,0.10);
+    --shadow-lg: 0 20px 60px rgba(81,45,109,0.22);
+    --font: "Dajana Rodriguez Serif", "Times New Roman", Georgia, serif;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F2F2F7; color: var(--text); min-height: 100vh; }
+  body { font-family: var(--font); background: #F3F3F3; color: var(--text); min-height: 100vh; }
+  button, input, select, textarea { font-family: inherit; }
 
   /* LOADER */
   .loader-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.92); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; transition: opacity 0.3s; }
@@ -55,15 +62,24 @@
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
   .sync-label { font-size: 11px; color: var(--gray3); font-weight: 500; }
 
-  /* HEADER */
-  .header { background: var(--white); padding: 14px 16px 10px; border-bottom: 1px solid var(--gray2); position: sticky; top: 0; z-index: 100; }
-  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-  .header-left { display: flex; flex-direction: column; gap: 2px; }
-  .header h1 { font-size: 19px; font-weight: 700; }
+  /* HEADER — brandová lišta (rovnaká ako hlavná Sklad appka) */
+  .header { background: linear-gradient(135deg, var(--purple-dark), var(--purple)); color: var(--white); padding: 12px 16px 10px; position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow); }
+  .header-top { display: flex; align-items: center; justify-content: space-between; }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .brand-logo { height: 36px; width: auto; display: block; }
+  .header h1 { font-size: 18px; font-weight: 700; letter-spacing: .3px; line-height: 1.1; }
+  .brand-sub { font-size: 10px; font-weight: 300; color: var(--purple-light); letter-spacing: 1.5px; text-transform: uppercase; margin: 1px 0 2px; }
   .sync-row { display: flex; align-items: center; }
-  .view-toggle { display: flex; background: var(--gray); border-radius: 10px; padding: 3px; }
-  .view-btn { border: none; background: transparent; border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 14px; transition: all 0.15s; }
-  .view-btn.active { background: var(--white); box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+  .sync-label { color: var(--purple-light); }
+  .view-toggle { display: flex; background: rgba(255,255,255,0.14); border-radius: 10px; padding: 3px; }
+  .view-btn { border: none; background: transparent; color: var(--white); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 14px; transition: all 0.15s; }
+  .view-btn.active { background: var(--white); color: var(--purple-dark); box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+
+  /* KATEGÓRIE (Limitky / Špecialitky / RDF / Nové / Kozmetika) */
+  .cat-tabs { display: flex; gap: 8px; padding: 10px 12px; background: var(--white); border-bottom: 1px solid var(--gray2); overflow-x: auto; scrollbar-width: none; }
+  .cat-tabs::-webkit-scrollbar { display: none; }
+  .cat-tab { border: 1.5px solid var(--gray2); background: var(--white); color: var(--text); border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: all .15s; }
+  .cat-tab.active { background: var(--purple); border-color: var(--purple); color: var(--white); }
 
   /* STATS */
   .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 10px 12px; background: var(--white); border-bottom: 1px solid var(--gray2); }
@@ -191,6 +207,8 @@
   .photo-preview.visible { display: block; }
   .upload-hint { font-size: 13px; color: var(--gray3); }
   .upload-hint .big { font-size: 26px; display: block; margin-bottom: 4px; }
+  .photo-delete-inline { margin-top: 8px; width: 100%; border: 1.5px solid var(--red); color: var(--red); background: var(--white); border-radius: 10px; padding: 9px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .photo-delete-inline:active { background: #fbe4e1; }
   .quick-codes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .quick-code-btn { background: var(--gray); border: none; border-radius: 20px; padding: 5px 11px; font-size: 12px; font-weight: 600; cursor: pointer; }
 
@@ -218,7 +236,8 @@
   /* PHOTO ZOOM MODAL */
   .photo-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 500; display: none; align-items: center; justify-content: center; cursor: zoom-out; }
   .photo-modal.open { display: flex; }
-  .photo-modal img { max-width: 95vw; max-height: 90vh; object-fit: contain; border-radius: 8px; }
+  .photo-modal img { max-width: 95vw; max-height: 85vh; object-fit: contain; border-radius: 8px; }
+  .photo-del-btn { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--red); color: var(--white); border: none; border-radius: 999px; padding: 12px 22px; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: var(--shadow-lg); }
 
   /* EMPTY */
   .empty-state { text-align: center; padding: 60px 20px; color: var(--gray3); grid-column: 1/-1; }
@@ -283,10 +302,14 @@
 <div class="header">
   <div class="header-top">
     <div class="header-left">
-      <h1>👜 Limitky</h1>
-      <div class="sync-row">
-        <span class="sync-dot" id="syncDot"></span>
-        <span class="sync-label" id="syncLabel">Pripájam…</span>
+      <img class="brand-logo" src="./assets/logo/white.svg" alt="Dajana Rodriguez">
+      <div>
+        <h1>Fotenie</h1>
+        <p class="brand-sub">Style with a story</p>
+        <div class="sync-row">
+          <span class="sync-dot" id="syncDot"></span>
+          <span class="sync-label" id="syncLabel">Pripájam…</span>
+        </div>
       </div>
     </div>
     <div class="view-toggle">
@@ -296,6 +319,14 @@
       <button class="logout-btn" id="logoutBtn" onclick="logout()" title="Odhlásiť sa" style="display:none">↩</button>
     </div>
   </div>
+</div>
+
+<div class="cat-tabs" id="catTabs">
+  <button class="cat-tab active" data-cat="limitka"   onclick="setCategory('limitka')">Limitky</button>
+  <button class="cat-tab" data-cat="specialka" onclick="setCategory('specialka')">Špecialitky</button>
+  <button class="cat-tab" data-cat="rdf"       onclick="setCategory('rdf')">RDF</button>
+  <button class="cat-tab" data-cat="nove"      onclick="setCategory('nove')">Nové produkty</button>
+  <button class="cat-tab" data-cat="kozmetika" onclick="setCategory('kozmetika')">Kozmetika</button>
 </div>
 
 <div class="stats-bar">
@@ -425,6 +456,7 @@
         <div class="upload-hint" id="uploadHint"><span class="big">📷</span>Odfotiť / nahrať</div>
         <img class="photo-preview" id="photoPreview" alt="">
       </div>
+      <button type="button" class="photo-delete-inline" id="photoDeleteBtn" style="display:none" onclick="deletePhoto(editingId)">🗑️ Vymazať fotku natrvalo</button>
     </div>
     <div class="form-group">
       <label>Popis</label>
@@ -452,6 +484,7 @@
 <!-- PHOTO ZOOM -->
 <div class="photo-modal" id="photoModal" onclick="document.getElementById('photoModal').classList.remove('open')">
   <img id="photoZoomImg" src="" alt="">
+  <button class="photo-del-btn" onclick="event.stopPropagation(); deletePhoto(zoomKey)">🗑️ Vymazať fotku</button>
 </div>
 
 <script>
@@ -573,7 +606,9 @@ let recentCodes = [];
 let currentFilter  = 'all';
 let currentView    = 'grid';
 let currentSection = 'main';
+let currentCategory = 'limitka';
 let editingId      = null;
+let zoomKey        = null;
 let currentPhotoBase64 = null;
 let currentPhotoIsNew  = false;
 
@@ -707,6 +742,25 @@ async function initApp() {
   }
 }
 
+// ─── KATEGÓRIE (rovnaká logika ako hlavná Sklad appka) ───────────────────────
+function noDiac(s) {
+  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+}
+function inferCategory(r) {
+  const name = noDiac(r.name), code = noDiac(r.code), note = noDiac(r.note);
+  if (name.includes('RDF') || code.includes('RDF') || note.includes('RDF')) return 'rdf';
+  if (name.includes('SPECIALITKA') || code.includes('SPE') || note.includes('SPEC')) return 'specialka';
+  if (note.includes('NEW') || note.includes('NOVE') || code.includes('NEW')) return 'nove';
+  return 'limitka';
+}
+function productCategory(r) { return r.category || inferCategory(r); }
+
+function setCategory(cat) {
+  currentCategory = cat;
+  document.querySelectorAll('.cat-tab').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
+  renderProducts();
+}
+
 const STATUS_LABELS  = { stock:'Na sklade', preparing:'Bošany', sent:'U fotografa', returned:'Vrátené', published:'Na webe' };
 const STATUS_BADGES  = { stock:'badge-stock', preparing:'badge-preparing', sent:'badge-sent', returned:'badge-returned', published:'badge-published' };
 const STATUS_CLASSES = { stock:'', preparing:'status-preparing', sent:'status-sent', returned:'status-returned', published:'status-published' };
@@ -743,6 +797,8 @@ function getList() {
   return Object.entries(products)
     .map(([k, v]) => ({ ...v, _key: k }))
     .filter(p => {
+      // category tab filter
+      if (productCategory(p) !== currentCategory) return false;
       // section filter
       if (currentSection === 'main' && (p.archived || p.deleted)) return false;
       if (currentSection === 'archive' && (!p.archived || p.deleted)) return false;
@@ -756,14 +812,15 @@ function getList() {
 
 // ─── STATS ────────────────────────────────────────────────────────────────────
 function updateStats() {
-  const active = Object.values(products).filter(p => !p.archived && !p.deleted);
+  const inCat   = Object.values(products).filter(p => productCategory(p) === currentCategory);
+  const active  = inCat.filter(p => !p.archived && !p.deleted);
   document.getElementById('count-all').textContent = active.length;
   document.getElementById('count-preparing').textContent = active.filter(p => p.fotoStage==='preparing').length;
   document.getElementById('count-sent').textContent = active.filter(p => p.fotoStage==='sent').length;
   document.getElementById('count-returned').textContent = active.filter(p => p.fotoStage==='returned').length;
   document.getElementById('count-published').textContent = active.filter(p => p.fotoStage==='published').length;
-  document.getElementById('count-archive').textContent = Object.values(products).filter(p => p.archived && !p.deleted).length;
-  document.getElementById('count-trash').textContent = Object.values(products).filter(p => p.deleted).length;
+  document.getElementById('count-archive').textContent = inCat.filter(p => p.archived && !p.deleted).length;
+  document.getElementById('count-trash').textContent = inCat.filter(p => p.deleted).length;
 }
 
 // ─── RECENT BAR ───────────────────────────────────────────────────────────────
@@ -968,6 +1025,7 @@ function openAddModal() {
   const prev = document.getElementById('photoPreview');
   prev.src = ''; prev.classList.remove('visible');
   document.getElementById('uploadHint').style.display = '';
+  document.getElementById('photoDeleteBtn').style.display = 'none';
   renderQuickCodes();
   document.getElementById('modalOverlay').classList.add('open');
   setTimeout(() => document.getElementById('fieldCode').focus(), 300);
@@ -997,6 +1055,7 @@ function openEditModal(key) {
     document.getElementById('photoPreview').classList.remove('visible');
     document.getElementById('uploadHint').style.display = '';
   }
+  document.getElementById('photoDeleteBtn').style.display = p.photo ? '' : 'none';
   renderQuickCodes();
   document.getElementById('modalOverlay').classList.add('open');
 }
@@ -1027,7 +1086,7 @@ async function saveProduct() {
       // nové ID = najväčšie existujúce + 1 (rovnako ako hlavná Sklad appka)
       id = Object.values(products).reduce((m, p) => Math.max(m, +p.id || 0), 0) + 1;
     }
-    const prev = products[id] || { bucket: '', category: '', createdAt: now };
+    const prev = products[id] || { bucket: '', category: currentCategory, createdAt: now };
     products[id] = {
       ...prev, ...data,
       id: +id || id,
@@ -1123,8 +1182,37 @@ function quickPhoto(key) {
 function zoomPhoto(key) {
   const p = products[key];
   if (!p || !p.photo) return;
+  zoomKey = key;
   document.getElementById('photoZoomImg').src = p.photo;
   document.getElementById('photoModal').classList.add('open');
+}
+
+// Natrvalo vymaže fotku produktu zo spoločnej databázy
+async function deletePhoto(key) {
+  const p = products[key];
+  if (!p || !p.photo) return;
+  if (!confirm(`Natrvalo vymazať fotku produktu ${p.code || p.name}?`)) return;
+  setSyncStatus('syncing', 'Mažem foto…');
+  try {
+    await apiFetch(`/api/photos/${key}`, 'DELETE');
+    delete photoMap[key];
+    p.photo = null;
+    document.getElementById('photoModal').classList.remove('open');
+    // ak je otvorený formulár tohto produktu, zresetovať náhľad
+    if (String(editingId) === String(key)) {
+      currentPhotoBase64 = null;
+      currentPhotoIsNew  = false;
+      document.getElementById('photoPreview').classList.remove('visible');
+      document.getElementById('uploadHint').style.display = '';
+      document.getElementById('photoDeleteBtn').style.display = 'none';
+      document.getElementById('photoInput').value = '';
+    }
+    setSyncStatus('online', 'Fotka vymazaná');
+    renderProducts();
+  } catch(e) {
+    setSyncStatus('offline', 'Chyba mazania');
+    console.error(e);
+  }
 }
 
 // ─── NAME BUILDER ────────────────────────────────────────────────────────────
