@@ -71,6 +71,13 @@
   .brand-sub { font-size: 10px; font-weight: 300; color: var(--purple-light); letter-spacing: 1.5px; text-transform: uppercase; margin: 1px 0 2px; }
   .sync-row { display: flex; align-items: center; }
   .sync-label { color: var(--purple-light); }
+  .header-right { display: flex; align-items: center; gap: 8px; }
+  .header-add {
+    width: 36px; height: 36px; border-radius: 50%; border: none; flex-shrink: 0;
+    background: var(--white); color: var(--purple); font-size: 22px; font-weight: 700;
+    line-height: 1; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.18);
+  }
+  .header-add:active { transform: scale(0.94); }
   .view-toggle { display: flex; background: rgba(255,255,255,0.14); border-radius: 10px; padding: 3px; }
   .view-btn { border: none; background: transparent; color: var(--white); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 14px; transition: all 0.15s; }
   .view-btn.active { background: var(--white); color: var(--purple-dark); box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
@@ -315,11 +322,14 @@
         </div>
       </div>
     </div>
-    <div class="view-toggle">
-      <button class="view-btn active" id="btnGrid" onclick="setView('grid')">⊞</button>
-      <button class="view-btn" id="btnTable" onclick="setView('table')">≡</button>
-      <button class="view-btn" onclick="exportPDF()" title="Export PDF">📄</button>
-      <button class="logout-btn" id="logoutBtn" onclick="logout()" title="Odhlásiť sa" style="display:none">↩</button>
+    <div class="header-right">
+      <button class="header-add" onclick="openAddModal()" title="Pridať nový produkt">＋</button>
+      <div class="view-toggle">
+        <button class="view-btn active" id="btnGrid" onclick="setView('grid')">⊞</button>
+        <button class="view-btn" id="btnTable" onclick="setView('table')">≡</button>
+        <button class="view-btn" onclick="exportPDF()" title="Export PDF">📄</button>
+        <button class="logout-btn" id="logoutBtn" onclick="logout()" title="Odhlásiť sa" style="display:none">↩</button>
+      </div>
     </div>
   </div>
 </div>
