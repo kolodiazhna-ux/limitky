@@ -192,6 +192,40 @@ async function repairMissingPhotos(onServer) {
   if (fixed > 0) toast(`Obnovených ${fixed} fotiek do spoločnej databázy.`);
 }
 
+/* ── Automatická obnova zo servera ─────────────────────────────────────────
+   Dlho otvorená stránka by inak držala starú kópiu dát a pri najbližšej
+   úprave by prepísala zmeny z iných zariadení (napr. archiváciu vo Fotení).
+   Preto sa dáta každých 30 s potichu obnovia zo servera — ale nie počas
+   úprav (otvorený formulár, kurzor v bunke) ani tesne po vlastnej zmene. */
+let lastLocalChange = 0;
+let lastServerJson  = "";
+
+async function refreshFromServer() {
+  if (document.hidden) return;                              // karta v pozadí
+  if (Date.now() - lastLocalChange < 15000) return;         // práve sme ukladali
+  if ($("#modalBg")?.classList.contains("open")) return;    // otvorený formulár
+  const ae = document.activeElement;
+  if (ae && ae.closest && ae.closest(".table-wrap") &&
+      (ae.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(ae.tagName))) return; // prebieha úprava bunky
+
+  let rows;
+  try {
+    const res = await apiFetch(API_PRODUCTS);
+    if (!res.ok) return;
+    rows = await res.json();
+  } catch (e) { return; }
+  if (!Array.isArray(rows) || rows.length === 0) return;
+
+  const j = JSON.stringify(rows);
+  if (j === lastServerJson) return;                         // nič nové
+  if (Date.now() - lastLocalChange < 15000) return;         // zmena počas sťahovania
+  lastServerJson = j;
+  data = normalize(rows);
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
+  render();
+}
+setInterval(refreshFromServer, 30000);
+
 /* Zosúladí lokálne dáta so serverom:
    • server má dáta  → server vyhráva (spoločný stav pre všetkých),
    • server prázdny + máme lokálne → nahráme lokálne (prvé zariadenie). */
@@ -516,6 +550,7 @@ function load() {
 }
 function save() {
   try {
+    lastLocalChange = Date.now(); // pozastaví auto-obnovu, aby neprepísala čerstvú zmenu
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     saveToServer(); // spoločná databáza – synchronizácia na pozadí
     return true;
@@ -765,8 +800,8 @@ function rowHtml(r) {
     </td>
     <td>${linkCell(r.id, "webSk", r.webSk)}</td>
     <td>${linkCell(r.id, "webCz", r.webCz)}</td>
-    <td>${fmtDate(r.date)}</td>
-    <td class="deadline-cell${r.deadline && r.deadline < new Date().toISOString().slice(0,10) ? ' deadline-past' : r.deadline ? ' deadline-set' : ''}">${r.deadline ? fmtDate(r.deadline) : ""}</td>
+    <td class="date-cell" data-datefield="date" data-id="${r.id}" title="Kliknite pre zmenu dátumu">${fmtDate(r.date)}</td>
+    <td class="date-cell deadline-cell${r.deadline && r.deadline < new Date().toISOString().slice(0,10) ? ' deadline-past' : r.deadline ? ' deadline-set' : ''}" data-datefield="deadline" data-id="${r.id}" title="Kliknite pre zmenu deadlinu">${r.deadline ? fmtDate(r.deadline) : ""}</td>
     <td class="cell-edit desc-cell" data-field="desc" contenteditable="true">${esc(r.desc)}</td>
     <td class="price cell-edit" data-field="price" contenteditable="true">${esc(r.price)}</td>
     <td class="cell-edit note-cell" data-field="note" contenteditable="true" data-note="${esc(r.note)}">${esc(r.note)}</td>
@@ -866,6 +901,38 @@ function bindRowEvents() {
     el.addEventListener("mouseenter", () => showPhotoZoom(el));
     el.addEventListener("mousemove", positionPhotoZoom);
     el.addEventListener("mouseleave", hidePhotoZoom);
+  });
+  // Dátum / deadline: klik na bunku otvorí kalendár priamo v tabuľke
+  document.querySelectorAll("td.date-cell").forEach((cell) => {
+    cell.addEventListener("click", () => {
+      if (cell.querySelector("input")) return; // kalendár je už otvorený
+      const row = data.find((r) => r.id === +cell.dataset.id);
+      const field = cell.dataset.datefield;
+      const inp = document.createElement("input");
+      inp.type = "date";
+      inp.className = "date-inline";
+      inp.value = row[field] || "";
+      cell.textContent = "";
+      cell.appendChild(inp);
+      let finished = false;
+      const done = (saveVal) => {
+        if (finished) return;
+        finished = true;
+        if (saveVal && inp.value !== (row[field] || "")) {
+          row[field] = inp.value;
+          save();
+          toast("Uložené");
+        }
+        render();
+      };
+      inp.addEventListener("change", () => done(true));
+      inp.addEventListener("blur", () => done(true));
+      inp.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") { e.preventDefault(); done(false); }
+      });
+      inp.focus();
+      try { inp.showPicker?.(); } catch (_) { /* bez user-gesture sa kalendár neotvorí sám */ }
+    });
   });
   // Zväčšenie textu pri prejdení myšou (mimo orezania tabuľky)
   document.querySelectorAll("td.note-cell, td.desc-cell").forEach((el) => {

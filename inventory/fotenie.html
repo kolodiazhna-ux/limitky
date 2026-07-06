@@ -649,8 +649,11 @@ function toServerArray() {
   return Object.values(products).map(({ photo, _key, deleted, ...p }) => p);
 }
 
+let lastLocalChange = 0; // pozastaví polling, aby neprepísal čerstvú zmenu
+
 async function pushProducts() {
   if (!isConfigured) return;
+  lastLocalChange = Date.now();
   setSyncStatus('syncing', 'Ukladám…');
   try {
     await apiFetch('/api/products', 'PUT', toServerArray());
@@ -690,8 +693,10 @@ async function initApp() {
     await loadPhotos();
     await Promise.all([loadProducts(), loadRecent()]);
     setSyncStatus('online', 'Online');
-    // Polling každých 30 sekúnd
+    // Polling každých 30 sekúnd — preskočí sa počas úprav a tesne po vlastnej zmene
     setInterval(async () => {
+      if (Date.now() - lastLocalChange < 15000) return;
+      if (document.getElementById('modalOverlay').classList.contains('open')) return;
       await loadProducts();
       await loadRecent();
     }, 30000);

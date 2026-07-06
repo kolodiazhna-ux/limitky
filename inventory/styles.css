@@ -553,6 +553,17 @@ tfoot .sum-note { font-weight: 600; color: var(--muted); font-size: 12px; }
 
 /* ── Deadline ───────────────────────────────────────── */
 td.deadline-cell { font-size: 12px; white-space: nowrap; }
+
+/* Dátum — klik otvorí kalendár priamo v bunke */
+td.date-cell { cursor: pointer; white-space: nowrap; }
+td.date-cell:hover { background: var(--smoke); border-radius: 6px; }
+.date-inline {
+  width: 100%; max-width: 130px;
+  font: inherit; font-size: 12px;
+  padding: 2px 4px;
+  border: 1px solid var(--primary); border-radius: 6px;
+  background: #fff; color: inherit;
+}
 td.deadline-set  { color: var(--warn); font-weight: 600; }
 td.deadline-past { color: var(--danger); font-weight: 700; }
 
