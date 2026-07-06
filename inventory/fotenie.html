@@ -349,7 +349,7 @@
   </div>
   <div class="stat stat-preparing" onclick="filterByStatus('preparing')" id="stat-preparing">
     <div class="stat-num" id="count-preparing">—</div>
-    <div class="stat-label">Bošany</div>
+    <div class="stat-label">Bošany/Partizánske</div>
   </div>
   <div class="stat stat-sent" onclick="filterByStatus('sent')" id="stat-sent">
     <div class="stat-num" id="count-sent">—</div>
@@ -483,7 +483,7 @@
       <label>Status</label>
       <select id="fieldStatus">
         <option value="stock">📦 Na sklade</option>
-        <option value="preparing">🔄 Bošany</option>
+        <option value="preparing">🔄 Bošany/Partizánske</option>
         <option value="sent">📤 U fotografa</option>
         <option value="returned">📥 Vrátené z fotenia</option>
         <option value="published">✅ Foto na webe</option>
@@ -797,7 +797,7 @@ function setCategory(cat) {
   renderProducts();
 }
 
-const STATUS_LABELS  = { stock:'Na sklade', preparing:'Bošany', sent:'U fotografa', returned:'Vrátené', published:'Na webe' };
+const STATUS_LABELS  = { stock:'Na sklade', preparing:'Bošany/Partizánske', sent:'U fotografa', returned:'Vrátené', published:'Na webe' };
 const STATUS_BADGES  = { stock:'badge-stock', preparing:'badge-preparing', sent:'badge-sent', returned:'badge-returned', published:'badge-published' };
 const STATUS_CLASSES = { stock:'', preparing:'status-preparing', sent:'status-sent', returned:'status-returned', published:'status-published' };
 const MODEL_PREFIXES = ['MIALIM', 'KTLIM', 'LILLIM', 'FRLIM', 'SMLIM'];
@@ -922,7 +922,7 @@ function renderGrid(list) {
         ${p.note ? `<div class="card-note">💬 ${esc(p.note)}</div>` : ''}
         ${links ? `<div class="card-links">${links}</div>` : ''}
         <div class="status-btns ${p.fotoStage && p.fotoStage!=='stock' ? 'has-status' : ''}">
-          <button class="status-btn btn-preparing ${p.fotoStage==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🔄 Bošany</button>
+          <button class="status-btn btn-preparing ${p.fotoStage==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🔄 Bošany/Part.</button>
           <button class="status-btn btn-sent ${p.fotoStage==='sent'?'active':''}" onclick="setStatus('${p._key}','sent')">📤 Fotograf</button>
           <button class="status-btn btn-returned ${p.fotoStage==='returned'?'active':''}" onclick="setStatus('${p._key}','returned')">📥 Vrátené</button>
           <button class="status-btn btn-published ${p.fotoStage==='published'?'active':''}" onclick="setStatus('${p._key}','published')">✅ Na webe</button>
@@ -1363,7 +1363,7 @@ function exportPDF() {
   <div class="summary">${now} · Celkom: ${active.length} produktov</div>`;
 
   const statusOrder = ['preparing','sent','returned','published','stock'];
-  const bgClass = { 'Na sklade':'bg-stock', 'Bošany':'bg-preparing', 'U fotografa':'bg-sent', 'Vrátené':'bg-returned', 'Na webe':'bg-published' };
+  const bgClass = { 'Na sklade':'bg-stock', 'Bošany/Partizánske':'bg-preparing', 'U fotografa':'bg-sent', 'Vrátené':'bg-returned', 'Na webe':'bg-published' };
 
   statusOrder.forEach(sk => {
     const label = STATUS_LABELS[sk] || sk;
