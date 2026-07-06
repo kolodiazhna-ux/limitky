@@ -6,13 +6,12 @@
 <title>Limitky — Fotenie</title>
 
 <!-- ╔══════════════════════════════════════════════════════════════╗ -->
-<!-- ║  CLOUDFLARE WORKER CONFIG                                    ║ -->
-<!-- ║  1. wrangler deploy  →  skopíruj URL workera                 ║ -->
-<!-- ║  2. Nastav WORKER_URL nižšie                                  ║ -->
+<!-- ║  Stránka je servovaná priamo Cloudflare Workerom,            ║ -->
+<!-- ║  takže API beží na rovnakej doméne (WORKER_URL = '').        ║ -->
 <!-- ╚══════════════════════════════════════════════════════════════╝ -->
 <script>
-  window.WORKER_URL    = 'https://limitky-api.kolodiazhna.workers.dev';
-  window.WORKER_API_KEY = '';   // voliteľný — nastav ak použiješ API_SECRET
+  window.WORKER_URL    = '';
+  window.WORKER_API_KEY = '';
 </script>
 
 <style>
@@ -459,12 +458,13 @@
 // ─── CLOUDFLARE WORKER INIT ───────────────────────────────────────────────────
 const WORKER_URL    = (window.WORKER_URL    || '').replace(/\/$/, '');
 const WORKER_API_KEY = window.WORKER_API_KEY || '';
-const isConfigured  = !!WORKER_URL && !WORKER_URL.includes('YOUR_SUBDOMAIN');
+const isConfigured  = true; // API je na rovnakej doméne ako stránka
 
 // ─── AUTH TOKEN ───────────────────────────────────────────────────────────────
-function getToken()         { return localStorage.getItem('limitky_token'); }
-function setToken(t)        { localStorage.setItem('limitky_token', t); }
-function clearToken()       { localStorage.removeItem('limitky_token'); }
+// Rovnaký kľúč ako hlavná Sklad appka → prihlásenie platí pre obe stránky.
+function getToken()         { return localStorage.getItem('dr_token'); }
+function setToken(t)        { localStorage.setItem('dr_token', t); }
+function clearToken()       { localStorage.removeItem('dr_token'); }
 
 let authMode = 'login'; // 'login' | 'register'
 
@@ -609,26 +609,18 @@ async function apiFetch(path, method = 'GET', body = null) {
   return res.json();
 }
 
-async function apiUploadPhoto(id, blob) {
-  const res = await fetch(`${WORKER_URL}/api/products/${id}/photo`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'image/jpeg', ...authHeader() },
-    body: blob,
-  });
-  if (!res.ok) throw new Error(`Photo upload ${res.status}`);
-  return res.json();
-}
-
-function b64toBlob(b64) {
-  const [header, data] = b64.split(',');
-  const mime = (header.match(/:(.*?);/) || [,'image/jpeg'])[1];
-  const bytes = atob(data);
-  const arr = new Uint8Array(bytes.length);
-  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-  return new Blob([arr], { type: mime });
+// Uloží fotku ako base64 do spoločnej databázy (rovnako ako hlavná Sklad appka).
+async function apiSavePhoto(id, dataUrl) {
+  await apiFetch(`/api/photos/${id}`, 'PUT', { data: dataUrl });
 }
 
 // ─── DATA LOADING ─────────────────────────────────────────────────────────────
+let photoMap = {};   // { id: dataUrl } — fotky sa sťahujú raz pri štarte
+
+async function loadPhotos() {
+  try { photoMap = (await apiFetch('/api/photos')) || {}; } catch(e) { photoMap = {}; }
+}
+
 async function loadProducts() {
   if (!isConfigured) return;
   const data = await apiFetch('/api/products');
@@ -636,13 +628,9 @@ async function loadProducts() {
   data.forEach(p => {
     products[p.id] = {
       ...p,
-      archived:  !!p.archived,
-      deleted:   !!p.deleted,
-      createdAt: p.created_at,
-      updatedAt: p.updated_at,
-      photo: p.photo_key
-        ? `${WORKER_URL}/api/products/${p.id}/photo`
-        : null,
+      archived: !!p.archived,
+      deleted:  p.bucket === 'trash',
+      photo:    photoMap[p.id] || null,
     };
   });
   renderProducts();
@@ -656,14 +644,16 @@ async function loadRecent() {
 }
 
 // ─── WRITE HELPERS ────────────────────────────────────────────────────────────
-async function apiSetProduct(key, p) {
+// Celý zoznam produktov sa ukladá naraz (rovnaký model ako hlavná Sklad appka).
+function toServerArray() {
+  return Object.values(products).map(({ photo, _key, deleted, ...p }) => p);
+}
+
+async function pushProducts() {
   if (!isConfigured) return;
   setSyncStatus('syncing', 'Ukladám…');
-  const payload = { ...p };
-  delete payload.photo;   // foto je v R2, nie v D1
-  delete payload._key;
   try {
-    await apiFetch(`/api/products/${key}`, 'PUT', payload);
+    await apiFetch('/api/products', 'PUT', toServerArray());
     setSyncStatus('online', 'Uložené');
   } catch(e) {
     setSyncStatus('offline', 'Chyba uloženia');
@@ -671,9 +661,11 @@ async function apiSetProduct(key, p) {
   }
 }
 
+async function apiSetProduct() { await pushProducts(); }
+
 async function apiRemoveProduct(key) {
-  if (!isConfigured) return;
-  await apiFetch(`/api/products/${key}`, 'DELETE');
+  await pushProducts();
+  try { await apiFetch(`/api/photos/${key}`, 'DELETE'); } catch(e) {}
 }
 
 async function apiUpdateRecent(codes) {
@@ -695,6 +687,7 @@ async function initApp() {
 
   setSyncStatus('syncing', 'Načítavam…');
   try {
+    await loadPhotos();
     await Promise.all([loadProducts(), loadRecent()]);
     setSyncStatus('online', 'Online');
     // Polling každých 30 sekúnd
@@ -749,7 +742,7 @@ function getList() {
       if (currentSection === 'main' && (p.archived || p.deleted)) return false;
       if (currentSection === 'archive' && (!p.archived || p.deleted)) return false;
       if (currentSection === 'trash' && !p.deleted) return false;
-      const mf = currentFilter === 'all' || p.status === currentFilter;
+      const mf = currentFilter === 'all' || p.fotoStage === currentFilter;
       const ms = !q || (p.code||'').toLowerCase().includes(q) || (p.name||'').toLowerCase().includes(q);
       return mf && ms;
     })
@@ -760,10 +753,10 @@ function getList() {
 function updateStats() {
   const active = Object.values(products).filter(p => !p.archived && !p.deleted);
   document.getElementById('count-all').textContent = active.length;
-  document.getElementById('count-preparing').textContent = active.filter(p => p.status==='preparing').length;
-  document.getElementById('count-sent').textContent = active.filter(p => p.status==='sent').length;
-  document.getElementById('count-returned').textContent = active.filter(p => p.status==='returned').length;
-  document.getElementById('count-published').textContent = active.filter(p => p.status==='published').length;
+  document.getElementById('count-preparing').textContent = active.filter(p => p.fotoStage==='preparing').length;
+  document.getElementById('count-sent').textContent = active.filter(p => p.fotoStage==='sent').length;
+  document.getElementById('count-returned').textContent = active.filter(p => p.fotoStage==='returned').length;
+  document.getElementById('count-published').textContent = active.filter(p => p.fotoStage==='published').length;
   document.getElementById('count-archive').textContent = Object.values(products).filter(p => p.archived && !p.deleted).length;
   document.getElementById('count-trash').textContent = Object.values(products).filter(p => p.deleted).length;
 }
@@ -800,34 +793,34 @@ function renderGrid(list) {
   }
   list.forEach(p => {
     const card = document.createElement('div');
-    card.className = `card ${STATUS_CLASSES[p.status]||''}`;
+    card.className = `card ${STATUS_CLASSES[p.fotoStage]||''}`;
     const photoHTML = p.photo
       ? `<img class="card-photo" src="${p.photo}" alt="" onclick="zoomPhoto('${p._key}')">`
       : `<div class="card-photo-placeholder" onclick="quickPhoto('${p._key}')"><span class="cam-icon">📷</span><span>Pridať foto</span></div>`;
-    const noteHTML = p.note ? `<div class="card-note">📝 ${esc(p.note)}</div>` : '';
+    const noteHTML = p.desc ? `<div class="card-note">📝 ${esc(p.desc)}</div>` : '';
     card.innerHTML = `
       ${photoHTML}
       <div class="card-body">
         <div class="card-header">
           <span class="card-code">${esc(p.code)}</span>
-          <span class="card-status-badge ${STATUS_BADGES[p.status]||'badge-stock'}">${STATUS_LABELS[p.status]||p.status}</span>
+          <span class="card-status-badge ${STATUS_BADGES[p.fotoStage]||'badge-stock'}">${STATUS_LABELS[p.fotoStage]||STATUS_LABELS.stock}</span>
         </div>
         <div class="card-name">${esc(p.name)}</div>
-        ${p.farbaKoze ? `<div class="card-desc">🎨 ${esc(p.farbaKoze)}</div>` : ''}
-        ${p.farbaKovania ? `<div class="card-desc">⚙️ ${esc(p.farbaKovania)}</div>` : ''}
+        ${p.kovanie ? `<div class="card-desc">⚙️ ${esc(p.kovanie)} kovanie</div>` : ''}
+        ${p.fotoNote ? `<div class="card-desc">📸 ${esc(p.fotoNote)}</div>` : ''}
         <div class="card-meta">
           ${p.qty   ? `<div class="card-meta-item">Ks: <span>${p.qty}</span></div>` : ''}
           ${p.price ? `<div class="card-meta-item">Cena: <span>${p.price}€</span></div>` : ''}
-          ${p.miesto ? `<div class="card-meta-item">Miesto: <span>${esc(p.miesto)}</span></div>` : ''}
+          ${p.place ? `<div class="card-meta-item">Miesto: <span>${esc(p.place)}</span></div>` : ''}
           ${p.date  ? `<div class="card-meta-item">Dátum: <span>${p.date}</span></div>` : ''}
         </div>
         ${noteHTML}
-        ${p.poznamka ? `<div class="card-note">💬 ${esc(p.poznamka)}</div>` : ''}
-        <div class="status-btns ${p.status && p.status!=='stock' ? 'has-status' : ''}">
-          <button class="status-btn btn-preparing ${p.status==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🔄 Bošany</button>
-          <button class="status-btn btn-sent ${p.status==='sent'?'active':''}" onclick="setStatus('${p._key}','sent')">📤 Fotograf</button>
-          <button class="status-btn btn-returned ${p.status==='returned'?'active':''}" onclick="setStatus('${p._key}','returned')">📥 Vrátené</button>
-          <button class="status-btn btn-published ${p.status==='published'?'active':''}" onclick="setStatus('${p._key}','published')">✅ Na webe</button>
+        ${p.note ? `<div class="card-note">💬 ${esc(p.note)}</div>` : ''}
+        <div class="status-btns ${p.fotoStage && p.fotoStage!=='stock' ? 'has-status' : ''}">
+          <button class="status-btn btn-preparing ${p.fotoStage==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🔄 Bošany</button>
+          <button class="status-btn btn-sent ${p.fotoStage==='sent'?'active':''}" onclick="setStatus('${p._key}','sent')">📤 Fotograf</button>
+          <button class="status-btn btn-returned ${p.fotoStage==='returned'?'active':''}" onclick="setStatus('${p._key}','returned')">📥 Vrátené</button>
+          <button class="status-btn btn-published ${p.fotoStage==='published'?'active':''}" onclick="setStatus('${p._key}','published')">✅ Na webe</button>
         </div>
         <div class="card-actions">
           ${currentSection === 'main' ? `
@@ -856,7 +849,7 @@ function renderTable(list) {
   }
   list.forEach(p => {
     const tr = document.createElement('tr');
-    tr.className = STATUS_CLASSES[p.status] || '';
+    tr.className = STATUS_CLASSES[p.fotoStage] || '';
     const thumbHTML = p.photo
       ? `<img class="table-thumb" src="${p.photo}" onclick="zoomPhoto('${p._key}')">`
       : `<div class="table-thumb" style="display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer" onclick="quickPhoto('${p._key}')">📷</div>`;
@@ -866,13 +859,13 @@ function renderTable(list) {
       <td>${esc(p.name)}</td>
       <td>${p.qty||'—'}</td>
       <td>${p.price ? p.price+'€' : '—'}</td>
-      <td>${esc(p.farbaKoze||'—')} / ${esc(p.farbaKovania||'—')}</td>
+      <td>${esc(p.desc||'—')}</td>
       <td>
-        <div class="table-status-btns ${p.status && p.status!=='stock' ? 'has-status' : ''}">
-          <button class="status-btn btn-preparing ${p.status==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🔄</button>
-          <button class="status-btn btn-sent ${p.status==='sent'?'active':''}" onclick="setStatus('${p._key}','sent')">📤</button>
-          <button class="status-btn btn-returned ${p.status==='returned'?'active':''}" onclick="setStatus('${p._key}','returned')">📥</button>
-          <button class="status-btn btn-published ${p.status==='published'?'active':''}" onclick="setStatus('${p._key}','published')">✅</button>
+        <div class="table-status-btns ${p.fotoStage && p.fotoStage!=='stock' ? 'has-status' : ''}">
+          <button class="status-btn btn-preparing ${p.fotoStage==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🔄</button>
+          <button class="status-btn btn-sent ${p.fotoStage==='sent'?'active':''}" onclick="setStatus('${p._key}','sent')">📤</button>
+          <button class="status-btn btn-returned ${p.fotoStage==='returned'?'active':''}" onclick="setStatus('${p._key}','returned')">📥</button>
+          <button class="status-btn btn-published ${p.fotoStage==='published'?'active':''}" onclick="setStatus('${p._key}','published')">✅</button>
         </div>
       </td>
       <td>
@@ -895,12 +888,13 @@ function renderTable(list) {
 async function setStatus(key, status) {
   const p = products[key];
   if (!p) return;
-  const newStatus = p.status === status ? 'stock' : status;
-  const updated = { ...p, status: newStatus, updatedAt: new Date().toISOString() };
-  products[key] = updated;
+  const newStatus = p.fotoStage === status ? 'stock' : status;
+  p.fotoStage = newStatus;
+  // Premietnuť aj do hlavnej Sklad appky (stĺpec „Stav fotenia")
+  if (newStatus === 'sent') p.photoStatus = 'Poslané na fotenie';
+  else if (newStatus === 'returned' || newStatus === 'published') p.photoStatus = 'Vyfotené';
   renderProducts();
-  await apiSetProduct(key, updated);
-  if (!isConfigured) localStorage.setItem('limitky_products', JSON.stringify(products));
+  await pushProducts();
 }
 
 // ─── SECTION SWITCH ──────────────────────────────────────────────────────────
@@ -929,6 +923,7 @@ async function restoreProduct(key) {
   if (!p) return;
   p.archived = false;
   p.deleted  = false;
+  p.bucket   = '';   // vybrať z koša aj v hlavnej Sklad appke
   p.updatedAt = new Date().toISOString();
   renderProducts();
   await apiSetProduct(key, p);
@@ -939,6 +934,7 @@ async function trashProduct(key) {
   const p = products[key];
   if (!p) return;
   p.deleted = true;
+  p.bucket  = 'trash';   // presunúť do koša aj v hlavnej Sklad appke
   p.updatedAt = new Date().toISOString();
   renderProducts();
   await apiSetProduct(key, p);
@@ -983,11 +979,11 @@ function openEditModal(key) {
   document.getElementById('fieldName').value  = p.name  || '';
   document.getElementById('fieldQty').value   = p.qty   || '';
   document.getElementById('fieldPrice').value = p.price || '';
-  document.getElementById('fieldMiesto').value = p.miesto || '';
+  document.getElementById('fieldMiesto').value = p.place || '';
   document.getElementById('fieldDate').value  = p.date  || '';
-  document.getElementById('fieldNote').value  = p.note  || '';
-  document.getElementById('fieldPoznamka').value = p.poznamka || '';
-  document.getElementById('fieldStatus').value = p.status || 'stock';
+  document.getElementById('fieldNote').value  = p.desc  || '';
+  document.getElementById('fieldPoznamka').value = p.note || '';
+  document.getElementById('fieldStatus').value = p.fotoStage || 'stock';
   if (p.photo) {
     const prev = document.getElementById('photoPreview');
     prev.src = p.photo; prev.classList.add('visible');
@@ -1012,46 +1008,37 @@ async function saveProduct() {
     code, name,
     qty:       document.getElementById('fieldQty').value    || '',
     price:     document.getElementById('fieldPrice').value  || '',
-    miesto:    document.getElementById('fieldMiesto').value.trim(),
+    place:     document.getElementById('fieldMiesto').value.trim(),
     date:      document.getElementById('fieldDate').value,
-    note:      document.getElementById('fieldNote').value.trim(),
-    poznamka:  document.getElementById('fieldPoznamka').value.trim(),
-    status:    document.getElementById('fieldStatus').value,
-    archived:  editingId ? (products[editingId]?.archived ? 1 : 0) : 0,
-    deleted:   0,
-    updated_at: now,
-    created_at: editingId ? (products[editingId]?.created_at || products[editingId]?.createdAt || now) : now,
+    desc:      document.getElementById('fieldNote').value.trim(),
+    note:      document.getElementById('fieldPoznamka').value.trim(),
+    fotoStage: document.getElementById('fieldStatus').value,
   };
-
-  if (!isConfigured) {
-    const key = editingId || ('local_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
-    products[key] = { ...data, photo: currentPhotoBase64 || null, createdAt: data.created_at, updatedAt: data.updated_at };
-    const newRecent = [code, ...recentCodes.filter(c => c !== code)].slice(0, 8);
-    recentCodes = newRecent;
-    localStorage.setItem('limitky_products', JSON.stringify(products));
-    localStorage.setItem('limitky_recent', JSON.stringify(recentCodes));
-    closeModal();
-    renderProducts();
-    renderRecentBar();
-    return;
-  }
 
   setSyncStatus('syncing', 'Ukladám…');
   try {
-    let id;
-    if (editingId) {
-      id = editingId;
-      await apiFetch(`/api/products/${id}`, 'PUT', data);
-    } else {
-      const res = await apiFetch('/api/products', 'POST', data);
-      id = res.id;
+    let id = editingId;
+    if (!id) {
+      // nové ID = najväčšie existujúce + 1 (rovnako ako hlavná Sklad appka)
+      id = Object.values(products).reduce((m, p) => Math.max(m, +p.id || 0), 0) + 1;
+    }
+    const prev = products[id] || { bucket: '', category: '', createdAt: now };
+    products[id] = {
+      ...prev, ...data,
+      id: +id || id,
+      createdAt: prev.createdAt || now,
+      updatedAt: now,
+      photo: prev.photo || null,
+    };
+
+    // Nahraj nové foto ak bolo vybrané
+    if (currentPhotoIsNew && currentPhotoBase64) {
+      await apiSavePhoto(id, currentPhotoBase64);
+      photoMap[id] = currentPhotoBase64;
+      products[id].photo = currentPhotoBase64;
     }
 
-    // Nahraj nové foto do R2 ak bolo vybrané
-    if (currentPhotoIsNew && currentPhotoBase64) {
-      const blob = b64toBlob(currentPhotoBase64);
-      await apiUploadPhoto(id, blob);
-    }
+    await pushProducts();
 
     // Aktualizuj nedávne kódy
     const newRecent = [code, ...recentCodes.filter(c => c !== code)].slice(0, 8);
@@ -1060,7 +1047,7 @@ async function saveProduct() {
 
     setSyncStatus('online', 'Uložené');
     closeModal();
-    await loadProducts();
+    renderProducts();
     renderRecentBar();
   } catch(e) {
     setSyncStatus('offline', 'Chyba uloženia');
@@ -1114,11 +1101,9 @@ function quickPhoto(key) {
       }
       setSyncStatus('syncing', 'Nahrávam foto…');
       try {
-        const blob = b64toBlob(b64);
-        await apiUploadPhoto(key, blob);
-        // Pridaj cache-buster aby prehliadač nenačítal starý obrázok
-        products[key].photo     = `${WORKER_URL}/api/products/${key}/photo?t=${Date.now()}`;
-        products[key].photo_key = `photos/${key}.jpg`;
+        await apiSavePhoto(key, b64);
+        photoMap[key] = b64;
+        products[key].photo = b64;
         setSyncStatus('online', 'Uložené');
         renderProducts();
       } catch(err) {
@@ -1189,7 +1174,7 @@ function exportPDF() {
   const now = new Date().toLocaleDateString('sk-SK');
   const groups = {};
   active.forEach(p => {
-    const s = STATUS_LABELS[p.status] || 'Na sklade';
+    const s = STATUS_LABELS[p.fotoStage] || 'Na sklade';
     if (!groups[s]) groups[s] = [];
     groups[s].push(p);
   });
@@ -1223,7 +1208,7 @@ function exportPDF() {
     html += '<h2 class="' + (bgClass[label]||'') + '">' + label + ' (' + items.length + ')</h2>';
     html += '<table><tr><th>Kód</th><th>Názov</th><th>Ks</th><th>Cena</th><th>Miesto</th><th>Dátum</th></tr>';
     items.forEach(p => {
-      html += '<tr><td>' + (p.code||'') + '</td><td>' + (p.name||'') + '</td><td>' + (p.qty||'—') + '</td><td>' + (p.price ? p.price+'€' : '—') + '</td><td>' + (p.miesto||'—') + '</td><td>' + (p.date||'—') + '</td></tr>';
+      html += '<tr><td>' + (p.code||'') + '</td><td>' + (p.name||'') + '</td><td>' + (p.qty||'—') + '</td><td>' + (p.price ? p.price+'€' : '—') + '</td><td>' + (p.place||'—') + '</td><td>' + (p.date||'—') + '</td></tr>';
     });
     html += '</table>';
   });
