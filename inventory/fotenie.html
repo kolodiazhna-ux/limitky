@@ -222,6 +222,8 @@
   .upload-hint .big { font-size: 26px; display: block; margin-bottom: 4px; }
   .photo-delete-inline { margin-top: 8px; width: 100%; border: 1.5px solid var(--red); color: var(--red); background: var(--white); border-radius: 10px; padding: 9px; font-size: 13px; font-weight: 600; cursor: pointer; }
   .photo-delete-inline:active { background: #fbe4e1; }
+  .cell-editable { cursor: pointer; }
+  .cell-editable:hover { background: var(--gray); }
   .card-hotove { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; font-weight: 600; color: var(--gray3); cursor: pointer; }
   .card-hotove input, .hotove-chk { width: 17px; height: 17px; cursor: pointer; accent-color: var(--green); }
   .card-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
@@ -991,8 +993,8 @@ function renderTable(list) {
       <td>${p.price ? p.price+'€' : '—'}</td>
       <td>${esc(p.place||'—')}</td>
       <td style="white-space:nowrap">${p.date ? fmtDate(p.date) : '—'}</td>
-      <td>${esc(p.desc||'—')}</td>
-      <td>${noteParts||'—'}</td>
+      <td class="cell-editable" onclick="editField('${p._key}','desc')" title="Kliknite pre úpravu popisu">${esc(p.desc||'—')}</td>
+      <td class="cell-editable" onclick="editField('${p._key}','note')" title="Kliknite pre úpravu poznámky">${noteParts||'—'}</td>
       <td>${esc(p.status||'—')}</td>
       <td style="text-align:center"><input type="checkbox" class="hotove-chk" onchange="toggleHotove('${p._key}', this.checked)" ${p.bucket==='soldout'?'checked':''} title="Hotové"></td>
       <td style="white-space:nowrap">${linkParts||'—'}</td>
@@ -1268,6 +1270,18 @@ function zoomPhoto(key) {
   zoomKey = key;
   document.getElementById('photoZoomImg').src = p.photo;
   document.getElementById('photoModal').classList.add('open');
+}
+
+// Rýchla úprava textového poľa kliknutím na bunku v tabuľke
+async function editField(key, field) {
+  const p = products[key];
+  if (!p) return;
+  const labels = { desc: 'Popis', note: 'Poznámka' };
+  const val = window.prompt(labels[field] + ':', p[field] || '');
+  if (val === null) return;
+  p[field] = val.trim();
+  renderProducts();
+  await pushProducts();
 }
 
 // Hotové: galočka presunie produkt do priečinka Hotové v Sklad appke (a späť)
