@@ -164,7 +164,7 @@
 
   /* TABLE */
   .table-wrap { overflow-x: auto; padding: 12px; padding-bottom: 100px; }
-  .products-table { width: 100%; border-collapse: collapse; background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; min-width: 700px; }
+  .products-table { width: 100%; border-collapse: collapse; background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; min-width: 1150px; }
   .products-table th { background: var(--purple); color: white; padding: 10px 12px; font-size: 12px; font-weight: 600; text-align: left; text-transform: uppercase; }
   .products-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--gray2); vertical-align: middle; }
   .products-table tr:last-child td { border-bottom: none; }
@@ -390,7 +390,7 @@
 <div class="table-wrap hidden" id="tableView">
   <table class="products-table">
     <thead><tr>
-      <th>Kód</th><th>Foto</th><th>Názov</th><th>Ks</th><th>Cena</th><th>Popis</th><th>Status</th><th></th>
+      <th>Kód</th><th>Foto</th><th>Názov</th><th>Ks</th><th>Cena</th><th>Miesto</th><th>Dátum</th><th>Popis</th><th>Poznámka</th><th>Stav</th><th>Odkazy</th><th>Status</th><th></th>
     </tr></thead>
     <tbody id="tableBody"></tbody>
   </table>
@@ -949,7 +949,7 @@ function renderTable(list) {
   const tbody = document.getElementById('tableBody');
   tbody.innerHTML = '';
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--gray3)">Žiadne produkty</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--gray3)">Žiadne produkty</td></tr>`;
     return;
   }
   list.forEach(p => {
@@ -958,13 +958,27 @@ function renderTable(list) {
     const thumbHTML = p.photo
       ? `<img class="table-thumb" src="${p.photo}" onclick="zoomPhoto('${p._key}')">`
       : `<div class="table-thumb" style="display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer" onclick="quickPhoto('${p._key}')">📷</div>`;
+    const noteParts = [
+      p.note     ? '💬 ' + esc(p.note) : '',
+      p.fotoNote ? '📸 ' + esc(p.fotoNote) : '',
+    ].filter(Boolean).join('<br>');
+    const linkParts = [
+      p.photoLink ? `<a class="card-link" href="${esc(p.photoLink)}" target="_blank" rel="noopener">📁</a>` : '',
+      p.webSk     ? `<a class="card-link" href="${esc(p.webSk)}" target="_blank" rel="noopener">SK</a>` : '',
+      p.webCz     ? `<a class="card-link" href="${esc(p.webCz)}" target="_blank" rel="noopener">CZ</a>` : '',
+    ].filter(Boolean).join(' ');
     tr.innerHTML = `
       <td><strong>${esc(p.code)}</strong></td>
       <td>${thumbHTML}</td>
       <td>${esc(p.name)}</td>
       <td>${p.qty||'—'}</td>
       <td>${p.price ? p.price+'€' : '—'}</td>
+      <td>${esc(p.place||'—')}</td>
+      <td style="white-space:nowrap">${p.date ? fmtDate(p.date) : '—'}</td>
       <td>${esc(p.desc||'—')}</td>
+      <td>${noteParts||'—'}</td>
+      <td>${esc(p.status||'—')}</td>
+      <td style="white-space:nowrap">${linkParts||'—'}</td>
       <td>
         <div class="table-status-btns ${p.fotoStage && p.fotoStage!=='stock' ? 'has-status' : ''}">
           <button class="status-btn btn-preparing ${p.fotoStage==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🔄</button>
