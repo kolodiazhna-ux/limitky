@@ -209,6 +209,9 @@
   .upload-hint .big { font-size: 26px; display: block; margin-bottom: 4px; }
   .photo-delete-inline { margin-top: 8px; width: 100%; border: 1.5px solid var(--red); color: var(--red); background: var(--white); border-radius: 10px; padding: 9px; font-size: 13px; font-weight: 600; cursor: pointer; }
   .photo-delete-inline:active { background: #fbe4e1; }
+  .card-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+  .card-link { display: inline-block; background: #efe7f8; color: var(--purple-dark); border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 600; text-decoration: none; }
+  .card-link:active { background: var(--purple-light); }
   .quick-codes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .quick-code-btn { background: var(--gray); border: none; border-radius: 20px; padding: 5px 11px; font-size: 12px; font-weight: 600; cursor: pointer; }
 
@@ -475,6 +478,29 @@
         <option value="returned">📥 Vrátené z fotenia</option>
         <option value="published">✅ Foto na webe</option>
       </select>
+    </div>
+    <div class="form-group">
+      <label>Stav (výroba / poloha)</label>
+      <select id="fieldStav">
+        <option value="">—</option>
+        <option value="Výroba">Výroba</option>
+        <option value="Bratislava">Bratislava</option>
+        <option value="Na ceste do Bratislavy">Na ceste do Bratislavy</option>
+        <option value="Na ceste do Partizánskeho">Na ceste do Partizánskeho</option>
+        <option value="Partizánske">Partizánske</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Odkaz na fotky (Drive…)</label>
+      <input type="url" id="fieldPhotoLink" placeholder="https://drive.google.com/…">
+    </div>
+    <div class="form-group">
+      <label>Web SK (odkaz)</label>
+      <input type="url" id="fieldWebSk" placeholder="https://dajanarodriguez.sk/…">
+    </div>
+    <div class="form-group">
+      <label>Web CZ (odkaz)</label>
+      <input type="url" id="fieldWebCz" placeholder="https://dajanarodriguez.cz/…">
     </div>
     <button class="btn-primary" onclick="saveProduct()">Uložiť</button>
     <button class="btn-secondary" onclick="closeModal()">Zrušiť</button>
@@ -860,6 +886,11 @@ function renderGrid(list) {
       ? `<img class="card-photo" src="${p.photo}" alt="" onclick="zoomPhoto('${p._key}')">`
       : `<div class="card-photo-placeholder" onclick="quickPhoto('${p._key}')"><span class="cam-icon">📷</span><span>Pridať foto</span></div>`;
     const noteHTML = p.desc ? `<div class="card-note">📝 ${esc(p.desc)}</div>` : '';
+    const links = [
+      p.photoLink ? `<a class="card-link" href="${esc(p.photoLink)}" target="_blank" rel="noopener">📁 Fotky</a>` : '',
+      p.webSk     ? `<a class="card-link" href="${esc(p.webSk)}" target="_blank" rel="noopener">🌐 Web SK</a>` : '',
+      p.webCz     ? `<a class="card-link" href="${esc(p.webCz)}" target="_blank" rel="noopener">🌐 Web CZ</a>` : '',
+    ].filter(Boolean).join('');
     card.innerHTML = `
       ${photoHTML}
       <div class="card-body">
@@ -874,10 +905,12 @@ function renderGrid(list) {
           ${p.qty   ? `<div class="card-meta-item">Ks: <span>${p.qty}</span></div>` : ''}
           ${p.price ? `<div class="card-meta-item">Cena: <span>${p.price}€</span></div>` : ''}
           ${p.place ? `<div class="card-meta-item">Miesto: <span>${esc(p.place)}</span></div>` : ''}
-          ${p.date  ? `<div class="card-meta-item">Dátum: <span>${p.date}</span></div>` : ''}
+          ${p.date  ? `<div class="card-meta-item">Dátum: <span>${fmtDate(p.date)}</span></div>` : ''}
+          ${p.status ? `<div class="card-meta-item">Stav: <span>${esc(p.status)}</span></div>` : ''}
         </div>
         ${noteHTML}
         ${p.note ? `<div class="card-note">💬 ${esc(p.note)}</div>` : ''}
+        ${links ? `<div class="card-links">${links}</div>` : ''}
         <div class="status-btns ${p.fotoStage && p.fotoStage!=='stock' ? 'has-status' : ''}">
           <button class="status-btn btn-preparing ${p.fotoStage==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🔄 Bošany</button>
           <button class="status-btn btn-sent ${p.fotoStage==='sent'?'active':''}" onclick="setStatus('${p._key}','sent')">📤 Fotograf</button>
@@ -1017,7 +1050,7 @@ function openAddModal() {
   currentPhotoBase64 = null;
   currentPhotoIsNew  = false;
   document.getElementById('modalTitle').textContent = 'Nový produkt';
-  ['fieldCode','fieldName','fieldQty','fieldPrice','fieldMiesto','fieldNote','fieldPoznamka'].forEach(id => document.getElementById(id).value = '');
+  ['fieldCode','fieldName','fieldQty','fieldPrice','fieldMiesto','fieldNote','fieldPoznamka','fieldStav','fieldPhotoLink','fieldWebSk','fieldWebCz'].forEach(id => document.getElementById(id).value = '');
   updateNamePreview();
   document.getElementById('fieldDate').value = '';
   document.getElementById('fieldStatus').value = 'stock';
@@ -1047,6 +1080,10 @@ function openEditModal(key) {
   document.getElementById('fieldNote').value  = p.desc  || '';
   document.getElementById('fieldPoznamka').value = p.note || '';
   document.getElementById('fieldStatus').value = p.fotoStage || 'stock';
+  document.getElementById('fieldStav').value      = p.status || '';
+  document.getElementById('fieldPhotoLink').value = p.photoLink || '';
+  document.getElementById('fieldWebSk').value     = p.webSk || '';
+  document.getElementById('fieldWebCz').value     = p.webCz || '';
   if (p.photo) {
     const prev = document.getElementById('photoPreview');
     prev.src = p.photo; prev.classList.add('visible');
@@ -1077,6 +1114,10 @@ async function saveProduct() {
     desc:      document.getElementById('fieldNote').value.trim(),
     note:      document.getElementById('fieldPoznamka').value.trim(),
     fotoStage: document.getElementById('fieldStatus').value,
+    status:    document.getElementById('fieldStav').value,
+    photoLink: document.getElementById('fieldPhotoLink').value.trim(),
+    webSk:     document.getElementById('fieldWebSk').value.trim(),
+    webCz:     document.getElementById('fieldWebCz').value.trim(),
   };
 
   setSyncStatus('syncing', 'Ukladám…');
@@ -1257,6 +1298,12 @@ function renderQuickCodes() {
 // ─── UTILS ────────────────────────────────────────────────────────────────────
 function esc(str) {
   return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// "2026-07-02" → "2.7.2026"
+function fmtDate(iso) {
+  const m = String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${+m[3]}.${+m[2]}.${m[1]}` : (iso || '');
 }
 
 // ─── EXPORT PDF ──────────────────────────────────────────────────────────────
