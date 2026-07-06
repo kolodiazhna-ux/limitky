@@ -3,9 +3,16 @@
   "configurations": [
     {
       "name": "limitky",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8080"],
-      "port": 8080
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["wrangler", "dev", "--port", "8787"],
+      "cwd": "worker",
+      "port": 8787
+    },
+    {
+      "name": "foto-studio",
+      "runtimeExecutable": "/Users/olhakolodiazhna/Documents/AI/Edit produkt photo/.venv/bin/python",
+      "runtimeArgs": ["/Users/olhakolodiazhna/Documents/AI/Edit produkt photo/studio_server.py"],
+      "port": 8765
     }
   ]
 }

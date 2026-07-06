@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dajana Rodriguez — Nový produkt</title>
+  <link rel="icon" href="./assets/symbol/purple.svg" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="./assets/logo/white.svg" alt="Dajana Rodriguez" />
+      <div class="titles">
+        <h1 id="pageTitle">Nový produkt</h1>
+        <p id="pageSubtitle">Pridať do skladu</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <a class="btn btn-ghost" href="./index.html" style="color:#fff;border-color:rgba(255,255,255,.4)">← Späť na sklad</a>
+    </div>
+  </header>
+
+  <div class="add-page-wrap">
+    <div class="add-page-card">
+      <div class="form-grid">
+        <div class="field full">
+          <label>Kategória produktu</label>
+          <select id="f-category">
+            <option value="limitka">Limitka</option>
+            <option value="specialka">Špecialitka</option>
+            <option value="rdf">RDF produkt</option>
+            <option value="nove">Nový produkt</option>
+            <option value="kozmetika">Kozmetika</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Kód</label>
+          <input id="f-code" placeholder="napr. MIALIM72" />
+        </div>
+        <div class="field">
+          <label>Cena (€)</label>
+          <input id="f-price" type="number" step="1" placeholder="285" />
+        </div>
+        <div class="field full">
+          <label>Názov produktu</label>
+          <input id="f-name" placeholder="Mia Limitka 72 Zlatá" />
+        </div>
+        <div class="field full">
+          <label>Kolekcia</label>
+          <input id="f-collection" placeholder="napr. Mia, Lily, Bella…" />
+        </div>
+        <div class="field">
+          <label>Počet ks</label>
+          <input id="f-qty" type="number" step="1" placeholder="3" />
+        </div>
+        <div class="field">
+          <label>Miesto výroby</label>
+          <input id="f-place" placeholder="RRR" />
+        </div>
+        <div class="field">
+          <label>Dátum uverejnenia</label>
+          <input id="f-date" type="date" />
+        </div>
+        <div class="field">
+          <label>Deadline</label>
+          <input id="f-deadline" type="date" />
+        </div>
+        <div class="field">
+          <label>Kovanie</label>
+          <select id="f-kovanie">
+            <option value=""></option>
+            <option value="Zlaté">Zlaté</option>
+            <option value="Strieborné">Strieborné</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Stav</label>
+          <select id="f-status">
+            <option value=""></option>
+            <option value="Výroba">Výroba</option>
+            <option value="Bratislava">Bratislava</option>
+            <option value="Na ceste do Bratislavy">Na ceste do Bratislavy</option>
+            <option value="Na ceste do Partizánskeho">Na ceste do Partizánskeho</option>
+            <option value="Partizánske">Partizánske</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Č. presunu — na fotenie</label>
+          <input id="f-transferUp" placeholder="napr. P-2026-014" />
+        </div>
+        <div class="field">
+          <label>Č. presunu — na sklad z fotenia</label>
+          <input id="f-transferDown" placeholder="napr. P-2026-015" />
+        </div>
+        <div class="field">
+          <label>Stav fotenia</label>
+          <select id="f-photoStatus">
+            <option value=""></option>
+            <option value="Poslané na fotenie">Poslané na fotenie</option>
+            <option value="Vyfotené">Vyfotené</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Odkaz na fotky</label>
+          <input id="f-photoLink" type="url" placeholder="https://drive.google.com/…" />
+        </div>
+        <div class="field">
+          <label>Web SK (odkaz)</label>
+          <input id="f-webSk" type="url" placeholder="https://dajanarodriguez.sk/…" />
+        </div>
+        <div class="field">
+          <label>Web CZ (odkaz)</label>
+          <input id="f-webCz" type="url" placeholder="https://dajanarodriguez.cz/…" />
+        </div>
+        <div class="field">
+          <label>Popis</label>
+          <input id="f-desc" placeholder="zlatá s výšivkou" />
+        </div>
+        <div class="field full">
+          <label>Poznámka</label>
+          <textarea id="f-note" placeholder="interná poznámka…"></textarea>
+        </div>
+        <div class="field full">
+          <label>Fotka</label>
+          <label class="photo-drop" id="photoDrop">
+            <div id="photoPreview">Kliknite pre nahratie fotky</div>
+            <input type="file" id="f-photo" accept="image/*" hidden />
+          </label>
+          <button type="button" class="btn btn-ghost" id="photoRemoveBtn" style="display:none;margin-top:8px;">Vymazať fotku</button>
+        </div>
+      </div>
+      <div class="modal-actions" style="margin-top:24px;">
+        <a class="btn btn-ghost" href="./index.html">Zrušiť</a>
+        <button class="btn btn-primary" id="saveBtn">Uložiť produkt</button>
+      </div>
+      <div class="toast" id="toast"></div>
+    </div>
+  </div>
+
+  <!-- Login overlay -->
+  <div class="auth-overlay" id="authOverlay">
+    <form class="auth-card" id="authForm" autocomplete="on">
+      <img class="auth-logo" src="./assets/logo/purple.svg" alt="Dajana Rodriguez" />
+      <h2 id="authTitle">Prihlásenie</h2>
+      <p class="auth-sub">Limitky <p class="auth-sub">Sklad &amp; Inventár</p>amp; Inventár</p>
+      <label for="auth-email">Email</label>
+      <input id="auth-email" type="email" required placeholder="vas@email.sk" autocomplete="email" />
+      <label for="auth-password">Heslo</label>
+      <input id="auth-password" type="password" required placeholder="••••••••" autocomplete="current-password" />
+      <div class="auth-error" id="authError" style="display:none"></div>
+      <button class="btn btn-primary" id="authSubmit" type="submit">Prihlásiť sa</button>
+      <p class="auth-toggle">
+        <span id="authTogglePrompt">Nemáte účet?</span>
+        <a href="#" id="authToggle">Zaregistrujte sa</a>
+      </p>
+    </form>
+  </div>
+
+  <script src="./auth.js?v=20260704"></script>
+  <script src="./novy-produkt.js?v=20260704"></script>
+</body>
+</html>

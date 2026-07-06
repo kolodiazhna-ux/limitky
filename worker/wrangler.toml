@@ -1,17 +1,27 @@
 name            = "limitky-api"
 main            = "src/index.js"
-compatibility_date = "2024-09-23"
+compatibility_date = "2024-12-01"
+account_id      = "4a72683f467376012dd11b810368ed41"
+
+# ─── Static site (Sklad/Inventár frontend) ──────────────────────────────────
+# Worker serves files from ../inventory for any request that matches a file.
+# Requests that don't match a file (e.g. /api/*) fall through to src/index.js.
+[assets]
+directory = "../inventory"
 
 # ─── D1 Database ──────────────────────────────────────────────────────────────
 [[d1_databases]]
 binding      = "DB"
 database_name = "limitky"
-database_id  = "43f6c13e-0ad0-4e43-b32b-dd36f942744a"
+database_id  = "22c23326-4d80-42fd-bd0a-f562542a214a"
 
 # ─── R2 Bucket ────────────────────────────────────────────────────────────────
-[[r2_buckets]]
-binding     = "PHOTOS"
-bucket_name = "limitky-photos"
+# DISABLED until R2 is enabled in the Cloudflare Dashboard (Dashboard → R2 → Enable).
+# Once enabled, run:  npx wrangler r2 bucket create limitky-photos
+# then uncomment the 3 lines below and redeploy. Needed only for photo upload to R2.
+# [[r2_buckets]]
+# binding     = "PHOTOS"
+# bucket_name = "limitky-photos"
 
 # ─── Secrets (set via: wrangler secret put API_SECRET) ───────────────────────
 # API_SECRET — voliteľný API kľúč, nastav cez: wrangler secret put API_SECRET

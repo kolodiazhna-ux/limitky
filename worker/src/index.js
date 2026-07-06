@@ -194,114 +194,65 @@ export default {
       const authed = await authenticate(request, env);
       if (!authed) return err('Unauthorized', 401, cors);
 
+      // ══ WHOLE-DOCUMENT MODEL ══════════════════════════════════════════════
+      // Celý zoznam produktov je jeden JSON blob v tabuľke `state`
+      // (key='products'). Fotky sú base64 v tabuľke `photos` (id → data).
+      // Vďaka tomu sa dáta zdieľajú medzi všetkými zariadeniami.
+
       // ── GET /api/products ──────────────────────────────────────────────────
+      // Vráti pole produktov (alebo prázdne pole, ak ešte nič nie je uložené).
       if (method === 'GET' && path === '/api/products') {
-        const { results } = await env.DB.prepare(
-          'SELECT * FROM products ORDER BY created_at DESC'
-        ).all();
-        return json(results, 200, cors);
-      }
-
-      // ── POST /api/products ─────────────────────────────────────────────────
-      if (method === 'POST' && path === '/api/products') {
-        const b   = await request.json();
-        const id  = newId();
-        const now = new Date().toISOString();
-        await env.DB.prepare(`
-          INSERT INTO products
-            (id, code, name, qty, price, miesto, date, note, poznamka, status,
-             archived, deleted, created_at, updated_at)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        `).bind(
-          id, b.code, b.name,
-          b.qty || '', b.price || '', b.miesto || '', b.date || '',
-          b.note || '', b.poznamka || '', b.status || 'stock',
-          0, 0,
-          b.created_at || now, b.updated_at || now
-        ).run();
-
-        const product = await env.DB.prepare(
-          'SELECT * FROM products WHERE id = ?'
-        ).bind(id).first();
-        return json(product, 201, cors);
-      }
-
-      // ── PUT /api/products/:id ──────────────────────────────────────────────
-      const singleMatch = path.match(/^\/api\/products\/([^/]+)$/);
-      if (method === 'PUT' && singleMatch) {
-        const id  = singleMatch[1];
-        const b   = await request.json();
-        const now = new Date().toISOString();
-        await env.DB.prepare(`
-          UPDATE products
-          SET code=?, name=?, qty=?, price=?, miesto=?, date=?,
-              note=?, poznamka=?, status=?, archived=?, deleted=?, updated_at=?
-          WHERE id=?
-        `).bind(
-          b.code, b.name,
-          b.qty || '', b.price || '', b.miesto || '', b.date || '',
-          b.note || '', b.poznamka || '', b.status || 'stock',
-          b.archived ? 1 : 0, b.deleted ? 1 : 0,
-          b.updated_at || now, id
-        ).run();
-        const product = await env.DB.prepare(
-          'SELECT * FROM products WHERE id = ?'
-        ).bind(id).first();
-        return json(product, 200, cors);
-      }
-
-      // ── DELETE /api/products/:id ───────────────────────────────────────────
-      if (method === 'DELETE' && singleMatch) {
-        const id  = singleMatch[1];
         const row = await env.DB.prepare(
-          'SELECT photo_key FROM products WHERE id = ?'
-        ).bind(id).first();
-        if (row?.photo_key) await env.PHOTOS.delete(row.photo_key);
-        await env.DB.prepare('DELETE FROM products WHERE id = ?').bind(id).run();
+          "SELECT value FROM state WHERE key = 'products'"
+        ).first();
+        const list = row ? JSON.parse(row.value) : [];
+        return json(list, 200, cors);
+      }
+
+      // ── PUT /api/products ──────────────────────────────────────────────────
+      // Uloží celé pole produktov naraz (last-write-wins).
+      if (method === 'PUT' && path === '/api/products') {
+        const list = await request.json();
+        if (!Array.isArray(list)) return err('Expected an array', 400, cors);
+        const now = new Date().toISOString();
+        await env.DB.prepare(
+          `INSERT INTO state (key, value, updated_at) VALUES ('products', ?, ?)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+        ).bind(JSON.stringify(list), now).run();
+        return json({ ok: true, count: list.length, updated_at: now }, 200, cors);
+      }
+
+      // ── GET /api/photos ────────────────────────────────────────────────────
+      // Vráti mapu { id: dataUrl } všetkých fotiek.
+      if (method === 'GET' && path === '/api/photos') {
+        const { results } = await env.DB.prepare(
+          'SELECT id, data FROM photos'
+        ).all();
+        const map = {};
+        for (const r of results) map[r.id] = r.data;
+        return json(map, 200, cors);
+      }
+
+      // ── PUT /api/photos/:id ────────────────────────────────────────────────
+      // Uloží / prepíše jednu fotku (telo = { data: "data:image/..." }).
+      const photoMatch = path.match(/^\/api\/photos\/([^/]+)$/);
+      if (method === 'PUT' && photoMatch) {
+        const id   = photoMatch[1];
+        const body = await request.json();
+        const data = typeof body === 'string' ? body : body.data;
+        if (!data) return err('Missing photo data', 400, cors);
+        const now = new Date().toISOString();
+        await env.DB.prepare(
+          `INSERT INTO photos (id, data, updated_at) VALUES (?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`
+        ).bind(id, data, now).run();
         return json({ ok: true }, 200, cors);
       }
 
-      // ── POST /api/products/:id/photo ───────────────────────────────────────
-      const photoMatch = path.match(/^\/api\/products\/([^/]+)\/photo$/);
-      if (method === 'POST' && photoMatch) {
-        const id          = photoMatch[1];
-        const contentType = request.headers.get('Content-Type') || 'image/jpeg';
-        const key         = `photos/${id}.jpg`;
-        await env.PHOTOS.put(key, request.body, { httpMetadata: { contentType } });
-        await env.DB.prepare(
-          'UPDATE products SET photo_key = ?, updated_at = ? WHERE id = ?'
-        ).bind(key, new Date().toISOString(), id).run();
-        return json({ ok: true, key }, 200, cors);
-      }
-
-      // ── GET /api/products/:id/photo ────────────────────────────────────────
-      if (method === 'GET' && photoMatch) {
-        const id  = photoMatch[1];
-        const row = await env.DB.prepare(
-          'SELECT photo_key FROM products WHERE id = ?'
-        ).bind(id).first();
-        if (!row?.photo_key) return new Response('Not found', { status: 404, headers: cors });
-        const obj = await env.PHOTOS.get(row.photo_key);
-        if (!obj) return new Response('Not found', { status: 404, headers: cors });
-        return new Response(obj.body, {
-          headers: {
-            ...cors,
-            'Content-Type':  obj.httpMetadata?.contentType || 'image/jpeg',
-            'Cache-Control': 'public, max-age=31536000, immutable',
-          },
-        });
-      }
-
-      // ── DELETE /api/products/:id/photo ─────────────────────────────────────
+      // ── DELETE /api/photos/:id ─────────────────────────────────────────────
       if (method === 'DELETE' && photoMatch) {
-        const id  = photoMatch[1];
-        const row = await env.DB.prepare(
-          'SELECT photo_key FROM products WHERE id = ?'
-        ).bind(id).first();
-        if (row?.photo_key) await env.PHOTOS.delete(row.photo_key);
-        await env.DB.prepare(
-          'UPDATE products SET photo_key = NULL, updated_at = ? WHERE id = ?'
-        ).bind(new Date().toISOString(), id).run();
+        const id = photoMatch[1];
+        await env.DB.prepare('DELETE FROM photos WHERE id = ?').bind(id).run();
         return json({ ok: true }, 200, cors);
       }
 

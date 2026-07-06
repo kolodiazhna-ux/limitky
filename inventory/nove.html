@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dajana Rodriguez — Limitky</title>
+  <title>Dajana Rodriguez — Nové produkty</title>
   <link rel="icon" href="./assets/symbol/purple.svg" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
-<body>
+<body data-category="nove">
   <header class="topbar">
     <div class="brand">
       <img src="./assets/logo/white.svg" alt="Dajana Rodriguez" />
       <div class="titles">
-        <h1>Limitky</h1>
-        <p>Style with a story</p>
+        <h1>Nové produkty</h1>
+        <p>Nové kabelky</p>
       </div>
     </div>
   </header>
@@ -24,19 +24,19 @@
       <input id="searchInput" type="text" placeholder="Hľadať podľa kódu, názvu, popisu…" />
     </div>
     <div class="spacer"></div>
-    <a class="btn btn-ghost" href="./nove.html">Nové produkty</a>
+    <a class="btn btn-ghost" href="./index.html">Limitky</a>
+    <a class="btn btn-ghost active" href="./nove.html">Nové produkty</a>
     <a class="btn btn-ghost" href="./specialka.html">Špeciálka</a>
     <a class="btn btn-ghost" href="./rdf.html">RDF produkty</a>
     <a class="btn btn-ghost" href="./kozmetika.html">Kozmetika</a>
     <a class="btn btn-ghost" href="./postup.html">Postup</a>
     <button class="btn btn-ghost" id="trashBtn">🗑️ Kôš</button>
     <button class="btn btn-ghost" id="exportBtn">Export CSV</button>
-    <button class="btn btn-primary" id="backupPhotosBtn" title="Nahrá všetky fotky z tohto zariadenia do spoločnej databázy">☁️ Zálohovať fotky</button>
   </div>
 
   <div class="add-bar">
     <span class="add-bar-label">Pridať nový produkt:</span>
-    <a class="btn btn-primary" href="./novy-produkt.html?cat=limitka">+ Limitka</a>
+    <a class="btn btn-primary" href="./novy-produkt.html?cat=nove">+ Nový produkt</a>
   </div>
 
   <div class="view-tabs" id="viewTabs"></div>
@@ -58,7 +58,7 @@
       </div>
     </div>
     <div class="chart-card">
-      <h3>Hodnota limitiek podľa kolekcie</h3>
+      <h3>Hodnota podľa kolekcie</h3>
       <div class="bars" id="barsValue"></div>
     </div>
     <div class="chart-card">
@@ -238,7 +238,7 @@
     <form class="auth-card" id="authForm" autocomplete="on">
       <img class="auth-logo" src="./assets/logo/purple.svg" alt="Dajana Rodriguez" />
       <h2 id="authTitle">Prihlásenie</h2>
-      <p class="auth-sub">Limitky <p class="auth-sub">Sklad &amp; Inventár</p>amp; Inventár</p>
+      <p class="auth-sub">Limitky — Sklad &amp; Inventár</p>
       <label for="auth-email">Email</label>
       <input id="auth-email" type="email" required placeholder="vas@email.sk" autocomplete="email" />
       <label for="auth-password">Heslo</label>

@@ -4,6 +4,218 @@
 
 const STORAGE_KEY = "dr_inventory_v2";
 
+/* ---------- Fotky v IndexedDB ----------
+   Fotky (data URL) sú veľké, preto ich NEUKLADÁME do localStorage (limit ~5 MB),
+   ale do IndexedDB (stovky MB). V pamäti držíme cache: id -> data URL. */
+const PHOTO_DB = "dr_photos";
+const PHOTO_STORE = "photos";
+let photoCache = {};
+let _photoDB = null;
+
+function openPhotoDB() {
+  return new Promise((resolve, reject) => {
+    if (_photoDB) return resolve(_photoDB);
+    const req = indexedDB.open(PHOTO_DB, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(PHOTO_STORE)) {
+        req.result.createObjectStore(PHOTO_STORE);
+      }
+    };
+    req.onsuccess = () => { _photoDB = req.result; resolve(_photoDB); };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function loadAllPhotos() {
+  try {
+    const db = await openPhotoDB();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(PHOTO_STORE, "readonly");
+      const store = tx.objectStore(PHOTO_STORE);
+      const req = store.openCursor();
+      req.onsuccess = () => {
+        const cur = req.result;
+        if (cur) { photoCache[cur.key] = cur.value; cur.continue(); }
+        else resolve();
+      };
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) { /* IndexedDB nedostupné – fotky nebudú */ }
+}
+
+async function idbPut(id, dataUrl) {
+  const db = await openPhotoDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PHOTO_STORE, "readwrite");
+    tx.objectStore(PHOTO_STORE).put(dataUrl, id);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function idbDel(id) {
+  const db = await openPhotoDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PHOTO_STORE, "readwrite");
+    tx.objectStore(PHOTO_STORE).delete(id);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+// Prečíta fotku z cache pre daný záznam.
+function photoOf(r) { return photoCache[r.id] || ""; }
+
+// Uloží / vymaže fotku (cache + IndexedDB). Vráti true/false.
+async function setPhoto(id, dataUrl) {
+  try {
+    if (dataUrl) { await idbPut(id, dataUrl); photoCache[id] = dataUrl; }
+    else { await idbDel(id); delete photoCache[id]; }
+    savePhotoToServer(id, dataUrl); // spoločná databáza – synchronizácia na pozadí
+    return true;
+  } catch (e) {
+    toast("Fotku sa nepodarilo uložiť");
+    return false;
+  }
+}
+
+/* Jednorazovo: presunúť staré fotky z localStorage (r.photo) do IndexedDB,
+   aby sa uvoľnila pamäť. Beží pred prvým vykreslením. */
+async function migratePhotosToIDB(rows) {
+  let moved = false;
+  for (const r of rows) {
+    if (r.photo && String(r.photo).startsWith("data:")) {
+      const ok = await setPhoto(r.id, r.photo);
+      if (ok) { r.photo = ""; moved = true; }
+    }
+  }
+  if (moved) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(rows)); } catch (e) {} }
+}
+
+/* ---------- Spoločná databáza (server) ----------
+   Server (Cloudflare D1) je zdroj pravdy – dáta sú spoločné pre všetky zariadenia.
+   localStorage + IndexedDB slúžia ako rýchla lokálna kópia a záloha pre prácu offline.
+   Model: celý zoznam produktov je jeden JSON dokument (PUT /api/products),
+   fotky sú uložené samostatne (PUT/DELETE /api/photos/:id). */
+const API_PRODUCTS = "/api/products";
+const API_PHOTOS   = "/api/photos";
+
+// authFetch je definované v auth.js (pridá prihlasovací token). Fallback na fetch.
+function apiFetch(url, opts) {
+  return (typeof authFetch === "function" ? authFetch : fetch)(url, opts);
+}
+
+// Uloží celý zoznam produktov na server. Beží na pozadí, chyby neblokujú appku.
+async function saveToServer() {
+  try {
+    const res = await apiFetch(API_PRODUCTS, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    return res.ok;
+  } catch (e) { return false; }
+}
+
+// Uloží (dataUrl) alebo vymaže (prázdne) jednu fotku na serveri.
+async function savePhotoToServer(id, dataUrl) {
+  try {
+    if (dataUrl) {
+      await apiFetch(`${API_PHOTOS}/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: dataUrl }),
+      });
+    } else {
+      await apiFetch(`${API_PHOTOS}/${id}`, { method: "DELETE" });
+    }
+    return true;
+  } catch (e) { return false; }
+}
+
+// Stiahne všetky fotky zo servera do cache + IndexedDB.
+// Vráti množinu (Set) ID fotiek, ktoré server má.
+async function pullPhotosFromServer() {
+  const onServer = new Set();
+  try {
+    const res = await apiFetch(API_PHOTOS);
+    if (!res.ok) return onServer;
+    const map = await res.json(); // { id: dataUrl }
+    for (const id in map) {
+      onServer.add(String(id));
+      photoCache[id] = map[id];
+      try { await idbPut(id, map[id]); } catch (e) {}
+    }
+  } catch (e) {}
+  return onServer;
+}
+
+// Nahrá všetky lokálne fotky na server (jednorazovo, keď je server prázdny).
+async function pushAllPhotosToServer() {
+  for (const id in photoCache) {
+    if (photoCache[id]) await savePhotoToServer(id, photoCache[id]);
+  }
+}
+
+/* Manuálna záloha: nahrá VŠETKY fotky z tohto zariadenia do spoločnej databázy.
+   Spustí sa tlačidlom „☁️ Zálohovať fotky". Je to spoľahlivé riešenie, keď sa
+   fotky z nejakého dôvodu nedostali na server automaticky. */
+async function backupPhotos(btn) {
+  const ids = Object.keys(photoCache).filter((id) => photoCache[id]);
+  if (ids.length === 0) {
+    toast("V tomto zariadení nie sú uložené žiadne fotky.");
+    return;
+  }
+  const origHTML = btn ? btn.innerHTML : "";
+  if (btn) { btn.disabled = true; btn.textContent = `Nahrávam 0/${ids.length}…`; }
+  let ok = 0;
+  for (let i = 0; i < ids.length; i++) {
+    const done = await savePhotoToServer(ids[i], photoCache[ids[i]]);
+    if (done) ok++;
+    if (btn) btn.textContent = `Nahrávam ${i + 1}/${ids.length}…`;
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = origHTML; }
+  toast(`Hotovo — ${ok} z ${ids.length} fotiek je v spoločnej databáze.`);
+}
+
+/* „Ремонт“ fotiek: ak máme fotku lokálne (v tomto prehliadači), ale na serveri
+   chýba, nahráme ju. Vďaka tomu sa fotky nazbierané na jednom zariadení
+   dostanú do spoločnej databázy aj keď server už má produkty. */
+async function repairMissingPhotos(onServer) {
+  let fixed = 0;
+  for (const id in photoCache) {
+    if (photoCache[id] && !onServer.has(String(id))) {
+      const ok = await savePhotoToServer(id, photoCache[id]);
+      if (ok) fixed++;
+    }
+  }
+  if (fixed > 0) toast(`Obnovených ${fixed} fotiek do spoločnej databázy.`);
+}
+
+/* Zosúladí lokálne dáta so serverom:
+   • server má dáta  → server vyhráva (spoločný stav pre všetkých),
+   • server prázdny + máme lokálne → nahráme lokálne (prvé zariadenie). */
+async function syncFromServer() {
+  let serverRows;
+  try {
+    const res = await apiFetch(API_PRODUCTS);
+    if (!res.ok) return;          // API nedostupné → ostávame na lokálnych dátach
+    serverRows = await res.json();
+  } catch (e) { return; }         // offline → lokálne dáta
+  if (!Array.isArray(serverRows)) return;
+
+  if (serverRows.length > 0) {
+    data = normalize(serverRows);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
+    const onServer = await pullPhotosFromServer();
+    await repairMissingPhotos(onServer); // dorovná fotky, čo sú lokálne ale chýbajú na serveri
+    render();
+  } else if (data.length > 0) {
+    await saveToServer();
+    await pushAllPhotosToServer();
+  }
+}
+
 const SEED = [
   { id: 1,  code: "MIALIM67-Z",     name: "Mia Limitka 67 Zlatá",                      photo: "", qty: 6,  place: "RRR", date: "2026-01-14", desc: "čierna so zlatým kovaním", price: 275, note: "" },
   { id: 2,  code: "MIALIM68",       name: "Mia Limitka 68 Strieborná",                 photo: "", qty: 7,  place: "RRR", date: "2026-01-21", desc: "nude s výšivkou japonska čerešňa", price: 285, note: "" },
@@ -44,6 +256,98 @@ const SEED = [
   { id: 37, code: "KTLIM46-Z",      name: "Kozmetická taštička Limitka 46 Zlatá",      photo: "", qty: 2,  place: "RRR", date: "2026-08-05", desc: "Červená s potlačou", price: 60, note: "" },
   { id: 38, code: "MARLIM19",       name: "Martina Limitka 19 Strieborná",             photo: "", qty: 6,  place: "RRR", date: "2026-08-12", desc: "Modrá s výšivkou", price: 305, note: "" },
   { id: 39, code: "ADRLIM8",        name: "Adriana Limitka 8 Strieborná",              photo: "", qty: 5,  place: "RRR", date: "2026-08-19", desc: "Cyklamenova s výšivkou", price: 325, note: "" },
+  { id: 40, code: "LILLIM66",       name: "Lily Limitka 66 Strieborná",               photo: "", qty: 4,  place: "RRR", date: "2026-08-26", desc: "Fuksia s výšivkou",        price: 305, note: "" },
+];
+
+/* RDF (Raul Del Fuego) — pánska línia.
+   Pôvodné RDF produkty boli na želanie odstránené (viď load() – dr_rdf_clear_v1). */
+const RDF_SEED = [];
+const RDF_SEED2 = [];
+
+/* Špecialitky — doplnia sa raz do dát (viď load()).
+   Názov obsahuje "Špecialitka", takže ich stránka Špeciálka zachytí. */
+const SPEC_SEED = [
+  { code: "EMASPE1", name: "Ema Špecialitka 1 Strieborná", kovanie: "Strieborné",
+    desc: "model ako BOHEMIAN, koža Lucy Ja orchidea, podšívka ottawa béžová, kovanie strieborné",
+    note: "logo kovové ako má EMA Bohemian" },
+];
+
+/* Limitky z tabuľky (doplnia sa raz do dát – viď load()).
+   STAV "HOTOVE" v tabuľke = kôš/priečinok "Hotové" (bucket: "soldout"). */
+const LIM_SEED = [
+  { code: "KHLLIM7",   name: "Khloe Limitka 7 Strieborná", category: "specialka", place: "DR", kovanie: "Strieborné",
+    desc: "svetlofialová s výšivkou", note: "strieborné razenie na klope (ako na Bohemian)" },
+  { code: "KHLLIM8-Z", name: "Khloe Limitka 8 Zlatá", category: "specialka", place: "DR", kovanie: "Zlaté",
+    desc: "svetlozelená s výšivkou", note: "zlaté razenie na klope (ako na Bohemian)" },
+  { code: "BELLIM4-Z", name: "Bella Limitka 4 Zlatá", category: "specialka", place: "DR", kovanie: "Zlaté",
+    qty: 10, price: 270, date: "2026-05-18", bucket: "soldout",
+    desc: "fialová koža (willer 86372), bude všetko ako Bohemian, logo kovové ako na Bohemian, kovanie zlaté, podšívka……????",
+    note: "logo kovové na PD ako na BOHEMIAN" },
+  { code: "LARLIM2-Z", name: "Lara Limitka 2 Zlatá", category: "specialka", place: "DR", kovanie: "Zlaté",
+    qty: 6, price: 310, date: "2026-05-25", bucket: "soldout",
+    desc: "béžová laková bez výšivky", note: "logo DR na klope" },
+  { code: "KARILIM2-Z", name: "Karin II Limitka 2 Zlatá", category: "specialka", place: "DR", kovanie: "Zlaté",
+    qty: 4, price: 310, date: "2026-06-01", bucket: "soldout",
+    desc: "koža mentolovo zelená, podšívka béžová, kovanie zlaté, pop ako contessa, logo kovové",
+    note: "logo DR na PD ako Contessa" },
+  { code: "LIALIM5-Z", name: "Lia Limitka 5 Zlatá", category: "specialka", place: "DR", kovanie: "Zlaté",
+    qty: 10, price: 380, date: "2026-06-22", bucket: "soldout",
+    desc: "koža limitková žltá, kovanie zlaté, telo ako IRIS, POP bude ako POP TRINITY vyšívaný (pripnutý ako doplnok), logo razené na KLOPE - zlaté - ako na IRIS, putká sú ako na BOHEMIAN nie ako na IRIS-e",
+    note: "logo razené ZLATÉ na KLOPE ako na IRIS" },
+  { code: "KHLLIM10-Z", name: "Khloe Limitka 10 Zlatá", category: "specialka", place: "DR", kovanie: "Zlaté",
+    qty: 15, price: 200, date: "2026-07-06", bucket: "soldout",
+    desc: "koža limitková ružová, model ako Bohemian, podšívka béžová OTTAWA, kovanie zlaté",
+    note: "logo razené ZLATÉ na KLOPE ako na Bohemian" },
+  { code: "VIKLIM2-Z", name: "Viktoria Limitka 2 Zlatá", category: "specialka", place: "DR", kovanie: "Zlaté",
+    qty: 20, price: 350, date: "2026-07-20", bucket: "soldout",
+    desc: "fialovo-modrá s dúhovým efektom ALARIS", note: "logo DR na PD" },
+  { code: "LARLIM3-Z", name: "Lara Limitka 3 Zlatá", category: "specialka", place: "DR", kovanie: "Zlaté",
+    qty: 11, price: 370, date: "2026-07-20", bucket: "soldout",
+    desc: "koža limitková ALARIS (tmavá fialová s dúhovým odleskom), kovanie zlaté, logo kovové na klope ako ATLANTIS, podšívka tmavofialová ottawa, zips presný 18cm čierny OOK D580",
+    note: "logo kovové na klope ako na ATLANTIS" },
+  { code: "LIALIM6-Z", name: "Lia Limitka 6 Zlatá", category: "specialka", place: "DR", kovanie: "Zlaté",
+    qty: 20,
+    desc: "koža cerulean trill, model ako Lady D, podšívka ottawa béžová, kovanie zlaté, razenie ZLATÉ na KLOPE ako Bohemian?",
+    note: "logo razené ZLATÉ na KLOPE ako na Bohemian" },
+  { code: "VANDLIM1-Z", name: "Vanda Limitka 1 Zlatá", category: "specialka", place: "DR", kovanie: "Zlaté",
+    qty: 4, price: 390, bucket: "soldout",
+    desc: "koža zelený krzený lak, podšívka ????, kovanie zlaté, logo kovové ako na Atlantise, robená v štýle ATLANTIS len bez rtľoviny",
+    note: "logo kovové na PD ako na ATLANTISE" },
+  { code: "LIMLIM3-Z", name: "Lima Limitka 3 Zlatá (LIMA Gatsby)", category: "specialka", place: "DR", kovanie: "Zlaté",
+    qty: 20,
+    desc: "koža limitková jasná zelená, model ako Bohemian len s výšivkou na PD, logo razené zlaté na klope ako na PRIMA",
+    note: "logo razené ZLATÉ na klope ako na PRIMA" },
+  { code: "KARLIM4-Z", name: "Karin Limitka 4 Zlatá", category: "specialka", place: "DR", kovanie: "Zlaté",
+    qty: 4,
+    desc: "koža limitková telová, model presne ako TRINITY, kovanie zlaté, výšivka presne ako TRINITY a nit vyšívacia sa doladí podľa kože (aby bola tón v tón), zips 3mm + 5mm OOK hnedý ako na TRINITY kolek. (vybrala Lubka s Ivkou v Bošanoch)",
+    note: "" },
+  { code: "BELLIM5-Z", name: "Bella Limitka 5 Zlatá", category: "specialka", place: "DR", kovanie: "Zlaté",
+    qty: 20,
+    desc: "koža hladká zlatá (z BELLY ORION), model ako CONTESSA - razenie na klope NA SUROVO, kovanie zlaté, podšívka béžová OTTAWA, zips presný kovový sand",
+    note: "logo razené na klope na SUROVO" },
+  { code: "VIVLIM2", name: "Vivienne Limitka 2 Strieborná (VIVIENNE Giada)", category: "specialka", place: "DR", kovanie: "Strieborné",
+    qty: 2,
+    desc: "koža limitková tmavozelená, model presne ako VIVIENNE Bohemian, podšívka ottawa ata béžová, zipsy sand plastové",
+    note: "logo kovové na PD ako na BOHEMIAN" },
+  { code: "LIMLIM4", name: "Lima Limitka 4 Strieborná", category: "specialka", place: "DR", kovanie: "Strieborné",
+    qty: 9,
+    desc: "koža limitková ružova ako CONTESSA len HLADKÁ, kovanie strieborne, ako PRIMA - výšivka PD + klopa, podš. OTTAWA ATA béžová",
+    note: "logo ako PRIMA - razené na klope NA SUROVO" },
+  { code: "POMLIM4-Z", name: "Pompadurka Limitka 4 Zlatá", category: "specialka", place: "DR", kovanie: "Zlaté",
+    desc: "koža limitková zlatá (mäkká), vyšívané PZD, kovanie zlaté, logo razené NA SUROVO, podšívka OTTAWA ATA béžová",
+    note: "logo razené NA SUROVO na PD" },
+  { code: "VIKLIM3-Z", name: "Viktoria Limitka 3 Zlatá", category: "specialka", place: "DR", kovanie: "Zlaté",
+    desc: "koža biela akákoľvek, kovanie zlaté, logo razené ZLATÉ na PD ako Bohemian, podš. OTTAWA ATA béžová",
+    note: "loro razené ZLATÉ na PD ako Bohemian" },
+  { code: "MIALIM79-Z", name: "Mia Limitka 79 Zlatá", category: "specialka", place: "DR", kovanie: "Zlaté",
+    desc: "koža zelená, výšivka vlčie maky len iné farby nití, všetko ako vlčie maky",
+    note: "logo kovové ako vlčie maky" },
+  { code: "KRILIM1-Z", name: "Kristýna Limitka 1 Zlatá", category: "specialka", place: "DR", kovanie: "Zlaté",
+    desc: "model ako PEONY, koža horčicová TRESOR 4994, kovanie zlaté, podšívka ottawa ata béžová, logo razené na držiaku ZLATÉ",
+    note: "logo razené ZLATÉ na držiaku ako PEONY" },
+  { code: "BELLIM6-Z", name: "Bella Limitka 6 Zlatá", category: "specialka", place: "DR", kovanie: "Zlaté",
+    desc: "model ako BOHEMIAN, koža horčicová TRESOR 4994, kovanie zlaté, podš. ottawa ata béžová, zips 3mm plastový sand k podšívke, logo kovové ako na Bohemian",
+    note: "logo kovové ako BELLE Bohemian" },
 ];
 
 /* Číselníky (fixné hodnoty pre statusy) */
@@ -68,22 +372,57 @@ function statusClass(v) {
 
 // Doplní chýbajúce polia (migrácia starších záznamov v localStorage)
 function normalize(rows) {
-  return rows.map((r) => ({
-    photoStatus: "", photoLink: "", transferNo: "", status: "", rowColor: "", bucket: "",
-    webSk: "", webCz: "", kovanie: "", ...r,
-  }));
+  return rows.map((r) => {
+    const o = {
+      photoStatus: "", photoLink: "", transferNo: "",
+      transferUp: "", transferDown: "", status: "", rowColor: "", bucket: "",
+      webSk: "", webCz: "", kovanie: "", deadline: "", category: "", collection: "", ...r,
+    };
+    // Migrácia: starý jeden "transferNo" -> horný presun (na fotenie)
+    if (!o.transferUp && o.transferNo) o.transferUp = o.transferNo;
+    return o;
+  });
 }
+
+/* ---------- Kategórie produktov ----------
+   Každý produkt patrí do jednej kategórie:
+     "limitka"   -> Limitky (táto stránka)
+     "specialka" -> Špeciálka
+     "rdf"       -> RDF produkty (pánska línia Raul Del Fuego)
+     "nove"      -> Nové produkty
+   Nové produkty majú kategóriu uloženú priamo (pole "category").
+   Staré dáta bez tohto poľa odhadneme podľa kódu / názvu / poznámky. */
+function noDiac(s) {
+  return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+}
+function inferCategory(r) {
+  const name = noDiac(r.name), code = noDiac(r.code), note = noDiac(r.note);
+  if (name.includes("RDF") || code.includes("RDF") || note.includes("RDF")) return "rdf";
+  if (name.includes("SPECIALITKA") || code.includes("SPE") || note.includes("SPEC")) return "specialka";
+  if (note.includes("NEW") || note.includes("NOVE") || code.includes("NEW")) return "nove";
+  return "limitka";
+}
+function productCategory(r) { return r.category || inferCategory(r); }
+
+// RDF (Raul Del Fuego) — pánska línia, nepatrí medzi limitky
+function isRdfProduct(r) { return productCategory(r) === "rdf"; }
 
 /* Koše (mäkká archivácia riadkov) */
 const BUCKETS = [
-  { v: "", label: "Aktívne" },
+  { v: "", label: "Pripravuje sa" },
   { v: "mail", label: "Odoslané na mail" },
-  { v: "soldout", label: "Vypredané" },
+  { v: "soldout", label: "Hotové" },
+  { v: "trash", label: "🗑️ Kôš" },
 ];
 const bucketLabel = (v) => (BUCKETS.find((b) => b.v === v) || {}).label || "";
 
 /* Prednastavené farby riadkov */
 const ROW_COLORS = ["", "#efe7f8", "#e3f6ec", "#fdf0dc", "#e2edfb", "#fbe4f0", "#fdecea"];
+
+// Ktorú kategóriu táto stránka zobrazuje. index.html = "limitka",
+// specialka.html = "specialka", rdf.html = "rdf", nove.html = "nove".
+// Nastavuje sa cez <body data-category="…">.
+const PAGE_CATEGORY = document.body.dataset.category || "limitka";
 
 let currentBucket = "";
 let selected = new Set();
@@ -94,16 +433,95 @@ let sortDir = -1; // -1 = desc, 1 = asc
 let editingPhoto = "";
 
 /* ---------- Storage ---------- */
+// Doplní produkty zo zoznamu, ak tam ešte nie sú.
+// Zhoda podľa kódu; ak kód chýba, podľa názvu.
+function ensureSeed(rows, seedList) {
+  let maxId = rows.reduce((m, r) => Math.max(m, r.id || 0), 0);
+  seedList.forEach((p) => {
+    const exists = p.code
+      ? rows.some((r) => r.code === p.code)
+      : rows.some((r) => r.name === p.name);
+    if (!exists) {
+      rows.push({ id: ++maxId, code: p.code || "", name: p.name, photo: "",
+        qty: p.qty || 0, place: p.place || "", date: p.date || "2026-07-02",
+        desc: p.desc || "", price: p.price || 0, note: p.note || "",
+        kovanie: p.kovanie || "", category: p.category || "",
+        bucket: p.bucket || "", status: p.status || "" });
+    }
+  });
+}
+
 function load() {
+  let rows;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return normalize(JSON.parse(raw));
-  } catch (e) {}
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(SEED));
-  return normalize(structuredClone(SEED));
+    rows = raw ? JSON.parse(raw) : structuredClone(SEED);
+  } catch (e) { rows = structuredClone(SEED); }
+  // Jednorazovo doplní RDF a Špecialitky (aj do existujúcich dát v localStorage).
+  // Flag zabráni ich opätovnému pridaniu, ak ich používateľ neskôr zmaže.
+  if (!localStorage.getItem("dr_rdf_seed_v1")) {
+    ensureSeed(rows, RDF_SEED);
+    localStorage.setItem("dr_rdf_seed_v1", "1");
+  }
+  if (!localStorage.getItem("dr_spec_seed_v1")) {
+    ensureSeed(rows, SPEC_SEED);
+    localStorage.setItem("dr_spec_seed_v1", "1");
+  }
+  if (!localStorage.getItem("dr_lim_seed_v1")) {
+    ensureSeed(rows, LIM_SEED);
+    localStorage.setItem("dr_lim_seed_v1", "1");
+  }
+  // Jednorazovo: odstrániť pánske kozmetické tašky a doplniť pánsku ľadvinku
+  if (!localStorage.getItem("dr_rdf_fix_v1")) {
+    rows = rows.filter((r) => {
+      const n = noDiac(r.name);
+      const isMensCosmeticBag = r.code === "PKTRDF9-GM" ||
+        (n.includes("PANSK") && n.includes("KOZMETICK") && n.includes("TASK"));
+      return !isMensCosmeticBag;
+    });
+    ensureSeed(rows, RDF_SEED2);
+    localStorage.setItem("dr_rdf_fix_v1", "1");
+  }
+  // Jednorazovo: presunúť vybrané limitky do kategórie Špeciálka
+  if (!localStorage.getItem("dr_move_spec_v1")) {
+    const toSpec = ["KHLLIM7", "KHLLIM8-Z", "BELLIM4-Z", "LARLIM2-Z"];
+    rows.forEach((r) => { if (toSpec.includes(r.code)) r.category = "specialka"; });
+    localStorage.setItem("dr_move_spec_v1", "1");
+  }
+  // Jednorazovo: presunúť ďalšie limitky do kategórie Špeciálka
+  if (!localStorage.getItem("dr_move_spec_v2")) {
+    const toSpec2 = ["KARILIM2-Z", "LIALIM5-Z", "KHLLIM10-Z", "VIKLIM2-Z", "LARLIM3-Z", "LIALIM6-Z", "VANDLIM1-Z", "LIMLIM3-Z"];
+    rows.forEach((r) => { if (toSpec2.includes(r.code)) r.category = "specialka"; });
+    localStorage.setItem("dr_move_spec_v2", "1");
+  }
+  // Jednorazovo: presunúť poslednú dávku limitiek do kategórie Špeciálka
+  if (!localStorage.getItem("dr_move_spec_v3")) {
+    const toSpec3 = ["KARLIM4-Z", "BELLIM5-Z", "VIVLIM2", "LIMLIM4", "POMLIM4-Z", "VIKLIM3-Z", "MIALIM79-Z", "KRILIM1-Z", "BELLIM6-Z"];
+    rows.forEach((r) => { if (toSpec3.includes(r.code)) r.category = "specialka"; });
+    localStorage.setItem("dr_move_spec_v3", "1");
+  }
+  // Jednorazovo: odstrániť pôvodné RDF produkty (na želanie používateľa)
+  if (!localStorage.getItem("dr_rdf_clear_v1")) {
+    const rmCodes = ["SCCRDRDF9", "CRDRDF9-GM", "LADRDF9"];
+    const rmNames = [
+      "SLIM CARDHOLDER RAUL DEL FUEGO", "PANSKY OPASOK CASUAL",
+      "PANSKY OPASOK ELEGANT", "PANSKY CARDHOLDER", "PANSKA LADVINKA",
+    ];
+    rows = rows.filter((r) => !rmCodes.includes(r.code) && !rmNames.includes(noDiac(r.name)));
+    localStorage.setItem("dr_rdf_clear_v1", "1");
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
+  return normalize(rows);
 }
 function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    saveToServer(); // spoločná databáza – synchronizácia na pozadí
+    return true;
+  } catch (err) {
+    toast("Pamäť je plná — fotka sa neuložila. Skúste menšiu fotku alebo vymažte staré.");
+    return false;
+  }
 }
 function nextId() {
   return data.reduce((m, r) => Math.max(m, r.id), 0) + 1;
@@ -119,6 +537,18 @@ function fmtDate(iso) {
 }
 function qtyClass(q) { return q <= 0 ? "qty-out" : q <= 3 ? "qty-low" : "qty-ok"; }
 
+function collectionBadge(code) {
+  const c = (code || "").toUpperCase();
+  if (c.startsWith("MIA"))  return `<span class="coll-badge coll-mia">MIA</span>`;
+  if (c.startsWith("LIL"))  return `<span class="coll-badge coll-lil">LIL</span>`;
+  if (c.startsWith("MAR"))  return `<span class="coll-badge coll-mar">MAR</span>`;
+  if (c.startsWith("KT"))   return `<span class="coll-badge coll-kt">KT</span>`;
+  if (c.startsWith("ADR"))  return `<span class="coll-badge coll-adr">ADR</span>`;
+  if (c.startsWith("LEA"))  return `<span class="coll-badge coll-lea">LEA</span>`;
+  if (c.startsWith("MIC"))  return `<span class="coll-badge coll-mic">MIC</span>`;
+  return `<span class="coll-badge coll-other">—</span>`;
+}
+
 let toastTimer;
 function toast(msg) {
   const t = $("#toast");
@@ -131,14 +561,12 @@ function toast(msg) {
 /* ---------- Filters / sort ---------- */
 function getView() {
   const q = $("#searchInput").value.trim().toLowerCase();
-  const place = $("#placeFilter").value;
-  const stock = $("#stockFilter").value;
   let rows = data.filter((r) => {
+    // Zobraz iba produkty kategórie tejto stránky.
+    if (productCategory(r) !== PAGE_CATEGORY) return false;
+    // Každý priečinok (bucket) zobrazuje len svoje položky:
+    //   "" = Pripravuje sa (aktívne),  "soldout" = Hotové,  "mail" = Na mail
     if ((r.bucket || "") !== currentBucket) return false;
-    if (place && r.place !== place) return false;
-    if (stock === "ok" && r.qty <= 3) return false;
-    if (stock === "low" && !(r.qty > 0 && r.qty <= 3)) return false;
-    if (stock === "out" && r.qty !== 0) return false;
     if (q) {
       const hay = `${r.code} ${r.name} ${r.desc} ${r.note} ${r.place}`.toLowerCase();
       if (!hay.includes(q)) return false;
@@ -149,7 +577,10 @@ function getView() {
     let av = a[sortKey], bv = b[sortKey];
     if (sortKey === "qty" || sortKey === "price") { av = +av; bv = +bv; }
     else { av = String(av).toLowerCase(); bv = String(bv).toLowerCase(); }
-    return av < bv ? -1 * sortDir : av > bv ? 1 * sortDir : 0;
+    if (av < bv) return -1 * sortDir;
+    if (av > bv) return 1 * sortDir;
+    // Pri rovnakej hodnote (napr. prázdny dátum) ukáž najnovšie pridané navrchu.
+    return (b.id || 0) - (a.id || 0);
   });
   return rows;
 }
@@ -162,7 +593,6 @@ function render() {
   $("#emptyState").style.display = rows.length ? "none" : "block";
   renderFooter(rows);
   renderTabs();
-  renderStats();
   renderCharts();
   renderHeaderArrows();
   bindRowEvents();
@@ -188,18 +618,29 @@ function plural(n, one, few, many) {
   return many;
 }
 
-// Iba aktívne (nearchivované) položky pre štatistiky a grafy
-const activeRows = () => data.filter((r) => !r.bucket);
+// Iba položky priečinka "Pripravuje sa" pre štatistiky a grafy
+// (Hotové a Odoslané na mail sa počítajú vo svojich priečinkoch; RDF sem nepatrí)
+const activeRows = () => data.filter((r) => !r.bucket && productCategory(r) === PAGE_CATEGORY);
 
 function renderTabs() {
-  $("#viewTabs").innerHTML = BUCKETS.map((b) => {
-    const cnt = data.filter((r) => (r.bucket || "") === b.v).length;
+  // Kôš (trash) sa nezobrazuje medzi záložkami — má vlastné tlačidlo v toolbare
+  $("#viewTabs").innerHTML = BUCKETS.filter((b) => b.v !== "trash").map((b) => {
+    // Každý priečinok počíta len produkty tejto kategórie
+    const cnt = data.filter((r) => (r.bucket || "") === b.v && productCategory(r) === PAGE_CATEGORY).length;
     return `<button class="view-tab ${b.v === currentBucket ? "active" : ""}" data-bucket="${b.v}">
       ${b.label}<span class="cnt">${cnt}</span></button>`;
   }).join("");
-  document.querySelectorAll("[data-bucket]").forEach((t) => {
+  document.querySelectorAll("#viewTabs [data-bucket]").forEach((t) => {
     t.addEventListener("click", () => { currentBucket = t.dataset.bucket; render(); });
   });
+
+  // Tlačidlo Kôš v toolbare (za Postup)
+  const trashBtn = $("#trashBtn");
+  if (trashBtn) {
+    const trashCnt = data.filter((r) => r.bucket === "trash" && productCategory(r) === PAGE_CATEGORY).length;
+    trashBtn.innerHTML = `🗑️ Kôš<span class="cnt">${trashCnt}</span>`;
+    trashBtn.classList.toggle("active", currentBucket === "trash");
+  }
 }
 
 /* ---------- Charts ---------- */
@@ -209,6 +650,10 @@ const CHART_PALETTE = ["#753BBD", "#C1A7E2", "#512D6D", "#9b6fd1", "#d8c6ef", "#
 function collectionOf(name) {
   const w = String(name).trim().split(/\s+/)[0] || "Iné";
   return w === "Kozmetická" ? "Taštičky" : w;
+}
+// Ak je kolekcia zadaná manuálne, použije sa tá; inak sa odvodí z názvu.
+function collectionName(r) {
+  return (r.collection && r.collection.trim()) || collectionOf(r.name);
 }
 
 function groupBy(rows, keyFn, valFn) {
@@ -229,7 +674,7 @@ function renderCharts() {
   const segs = [
     { label: "Na sklade", value: ok, color: "#2e9e6b" },
     { label: "Nízke zásoby", value: low, color: "#d68910" },
-    { label: "Vypredané", value: out, color: "#c0392b" },
+    { label: "Hotové", value: out, color: "#c0392b" },
   ];
   const total = ok + low + out;
   let acc = 0;
@@ -250,9 +695,9 @@ function renderCharts() {
     .join("");
 
   // Bars: hodnota skladu podľa kolekcie
-  renderBars("#barsValue", groupBy(A, (r) => collectionOf(r.name), (r) => (+r.qty || 0) * (+r.price || 0)), (v) => `${v.toLocaleString("sk-SK")} €`);
+  renderBars("#barsValue", groupBy(A, (r) => collectionName(r), (r) => (+r.qty || 0) * (+r.price || 0)), (v) => `${v.toLocaleString("sk-SK")} €`);
   // Bars: počet kusov podľa kolekcie
-  renderBars("#barsQty", groupBy(A, (r) => collectionOf(r.name), (r) => +r.qty || 0), (v) => `${v} ks`);
+  renderBars("#barsQty", groupBy(A, (r) => collectionName(r), (r) => +r.qty || 0), (v) => `${v} ks`);
 }
 
 function renderBars(sel, entries, fmt) {
@@ -272,7 +717,7 @@ function selectHtml(field, value, options, classFn) {
   const opts = options
     .map((o) => `<option value="${esc(o)}" ${o === value ? "selected" : ""}>${o || "—"}</option>`)
     .join("");
-  return `<select class="badge-select ${classFn(value)}" data-sel="${field}">${opts}</select>`;
+  return `<select class="badge-select ${classFn(value)}" data-selfield="${field}">${opts}</select>`;
 }
 
 // Kovanie ako farebné body (bez textu): zlaté / strieborné. Klik = vybrať / zrušiť.
@@ -291,10 +736,11 @@ function linkCell(id, field, url) {
 }
 
 function rowHtml(r) {
-  const thumb = r.photo
-    ? `<img class="thumb" src="${r.photo}" data-photo="${r.id}" alt="" />`
+  const _photo = photoOf(r);
+  const thumb = _photo
+    ? `<img class="thumb" src="${_photo}" data-photo="${r.id}" alt="" />`
     : `<div class="thumb empty" data-photo="${r.id}">foto</div>`;
-  const style = r.rowColor ? ` style="background:${r.rowColor}"` : "";
+  const style = r.rowColor ? ` style="--row-bg:${r.rowColor}"` : "";
   const cls = [r.bucket ? "bucketed" : "", selected.has(r.id) ? "selected" : ""].join(" ").trim();
   return `<tr data-id="${r.id}" class="${cls}"${style}>
     <td class="sel-td"><input type="checkbox" class="row-sel" data-sel-id="${r.id}" ${selected.has(r.id) ? "checked" : ""} /></td>
@@ -311,32 +757,21 @@ function rowHtml(r) {
     <td class="cell-edit" data-field="place" contenteditable="true">${esc(r.place)}</td>
     <td>${kovanieCell(r.id, r.kovanie)}</td>
     <td>${selectHtml("status", r.status, STATUSES, statusClass)}</td>
-    <td class="cell-edit" data-field="transferNo" contenteditable="true">${esc(r.transferNo)}</td>
+    <td class="transfer-cell">
+      <div class="cell-edit tr-line" data-field="transferUp" contenteditable="true" data-ph="na fotenie" title="Presun na fotenie">${esc(r.transferUp)}</div>
+      <div class="cell-edit tr-line" data-field="transferDown" contenteditable="true" data-ph="na sklad" title="Presun na sklad z fotenia">${esc(r.transferDown)}</div>
+    </td>
     <td>${linkCell(r.id, "webSk", r.webSk)}</td>
     <td>${linkCell(r.id, "webCz", r.webCz)}</td>
     <td>${fmtDate(r.date)}</td>
-    <td class="cell-edit" data-field="desc" contenteditable="true">${esc(r.desc)}</td>
+    <td class="deadline-cell${r.deadline && r.deadline < new Date().toISOString().slice(0,10) ? ' deadline-past' : r.deadline ? ' deadline-set' : ''}">${r.deadline ? fmtDate(r.deadline) : ""}</td>
+    <td class="cell-edit desc-cell" data-field="desc" contenteditable="true">${esc(r.desc)}</td>
     <td class="price cell-edit" data-field="price" contenteditable="true">${esc(r.price)}</td>
     <td class="cell-edit note-cell" data-field="note" contenteditable="true" data-note="${esc(r.note)}">${esc(r.note)}</td>
     <td class="row-actions">
       <button class="icon-btn" data-menu="${r.id}" title="Akcie">&#8943;</button>
     </td>
   </tr>`;
-}
-
-function renderStats() {
-  const A = activeRows();
-  const total = A.length;
-  const pieces = A.reduce((s, r) => s + (+r.qty || 0), 0);
-  const value = A.reduce((s, r) => s + (+r.qty || 0) * (+r.price || 0), 0);
-  const low = A.filter((r) => r.qty > 0 && r.qty <= 3).length;
-  const out = A.filter((r) => r.qty === 0).length;
-  $("#stats").innerHTML = `
-    <div class="stat"><div class="num">${total}</div><div class="lbl">Produktov</div></div>
-    <div class="stat"><div class="num">${pieces}</div><div class="lbl">Kusov spolu</div></div>
-    <div class="stat"><div class="num">${value.toLocaleString("sk-SK")} €</div><div class="lbl">Hodnota skladu</div></div>
-    <div class="stat"><div class="num">${low}</div><div class="lbl">Nízke zásoby</div></div>
-    <div class="stat"><div class="num">${out}</div><div class="lbl">Vypredané</div></div>`;
 }
 
 function renderHeaderArrows() {
@@ -367,10 +802,10 @@ function bindRowEvents() {
       if (e.key === "Enter") { e.preventDefault(); cell.blur(); }
     });
   });
-  document.querySelectorAll("[data-sel]").forEach((sel) => {
+  document.querySelectorAll("[data-selfield]").forEach((sel) => {
     sel.addEventListener("change", () => {
       const id = +sel.closest("tr").dataset.id;
-      const field = sel.dataset.sel;
+      const field = sel.dataset.selfield;
       const row = data.find((r) => r.id === id);
       row[field] = sel.value;
       // prefarbiť bejdž podľa novej hodnoty (teraz už len „status")
@@ -431,7 +866,7 @@ function bindRowEvents() {
     el.addEventListener("mouseleave", hidePhotoZoom);
   });
   // Zväčšenie textu pri prejdení myšou (mimo orezania tabuľky)
-  document.querySelectorAll("td.note-cell").forEach((el) => {
+  document.querySelectorAll("td.note-cell, td.desc-cell").forEach((el) => {
     el.addEventListener("mouseenter", (e) => showTextZoom(el, e));
     el.addEventListener("mousemove", positionTextZoom);
     el.addEventListener("mouseleave", hideTextZoom);
@@ -480,13 +915,20 @@ function renderBulkBar() {
       ? `<div class="bulk-swatch none" data-bcolor="" title="Žiadna">✕</div>`
       : `<div class="bulk-swatch" style="background:${c}" data-bcolor="${c}"></div>`
   ).join("");
-  bar.innerHTML = `
+  const inTrash = currentBucket === "trash";
+  bar.innerHTML = inTrash
+    ? `
+    <span class="cnt">${selected.size} vybrané</span>
+    <button class="bulk-btn" data-bact="active">↩️ Obnoviť</button>
+    <button class="bulk-btn danger" data-bact="purge">🗑️ Vymazať navždy</button>
+    <button class="bulk-btn" data-bact="clear">✕ Zrušiť výber</button>`
+    : `
     <span class="cnt">${selected.size} vybrané</span>
     <div class="bulk-swatches">${swatches}</div>
     <button class="bulk-btn" data-bact="mail">✉️ Na mail</button>
-    <button class="bulk-btn" data-bact="soldout">🏷️ Vypredané</button>
-    <button class="bulk-btn" data-bact="active">↩️ Aktívne</button>
-    <button class="bulk-btn danger" data-bact="del">🗑️ Vymazať</button>
+    <button class="bulk-btn" data-bact="soldout">🏷️ Hotové</button>
+    <button class="bulk-btn" data-bact="active">↩️ Pripravuje sa</button>
+    <button class="bulk-btn danger" data-bact="del">🗑️ Do koša</button>
     <button class="bulk-btn" data-bact="clear">✕ Zrušiť výber</button>`;
   bar.classList.add("show");
   bar.querySelectorAll("[data-bcolor]").forEach((sw) =>
@@ -496,10 +938,15 @@ function renderBulkBar() {
     btn.addEventListener("click", () => {
       const act = btn.dataset.bact;
       if (act === "clear") { selected.clear(); render(); return; }
-      if (act === "del") {
-        if (!confirm(`Vymazať ${selected.size} vybraných produktov?`)) return;
+      if (act === "purge") {
+        if (!confirm(`Natrvalo vymazať ${selected.size} vybraných produktov? Túto akciu nie je možné vrátiť.`)) return;
+        selected.forEach((id) => setPhoto(id, "")); // vymazať aj fotky z IndexedDB
         data = data.filter((r) => !selected.has(r.id));
-        selected.clear(); save(); render(); toast("Vymazané"); return;
+        selected.clear(); save(); render(); toast("Natrvalo vymazané"); return;
+      }
+      if (act === "del") {
+        applyToSelected((r) => (r.bucket = "trash"), "Presunuté do koša");
+        selected.clear(); render(); return;
       }
       const bucket = act === "active" ? "" : act;
       applyToSelected((r) => (r.bucket = bucket), "Presunuté");
@@ -517,10 +964,15 @@ function openRowMenu(id, anchor) {
       ? `<div class="rm-swatch none" data-color="" title="Žiadna">✕</div>`
       : `<div class="rm-swatch" style="background:${c}" data-color="${c}"></div>`
   ).join("");
+  const inTrash = row.bucket === "trash";
   const bucketItems = [];
-  if (row.bucket !== "mail") bucketItems.push(`<button class="rm-item" data-act="mail">✉️ Odoslané na mail</button>`);
-  if (row.bucket !== "soldout") bucketItems.push(`<button class="rm-item" data-act="soldout">🏷️ Vypredané</button>`);
-  if (row.bucket) bucketItems.push(`<button class="rm-item" data-act="active">↩️ Vrátiť medzi aktívne</button>`);
+  if (inTrash) {
+    bucketItems.push(`<button class="rm-item" data-act="active">↩️ Obnoviť z koša</button>`);
+  } else {
+    if (row.bucket !== "mail") bucketItems.push(`<button class="rm-item" data-act="mail">✉️ Odoslané na mail</button>`);
+    if (row.bucket !== "soldout") bucketItems.push(`<button class="rm-item" data-act="soldout">🏷️ Hotové</button>`);
+    if (row.bucket) bucketItems.push(`<button class="rm-item" data-act="active">↩️ Vrátiť do Pripravuje sa</button>`);
+  }
 
   menu.innerHTML = `
     <div class="rm-title">Farba riadku</div>
@@ -528,9 +980,9 @@ function openRowMenu(id, anchor) {
     <div class="rm-sep"></div>
     ${bucketItems.join("")}
     <div class="rm-sep"></div>
-    ${row.photo ? `<button class="rm-item danger" data-act="delphoto">🖼️ Vymazať fotku</button>` : ""}
+    ${photoOf(row) ? `<button class="rm-item danger" data-act="delphoto">🖼️ Vymazať fotku</button>` : ""}
     <button class="rm-item" data-act="edit">✏️ Upraviť</button>
-    <button class="rm-item danger" data-act="del">🗑️ Vymazať</button>`;
+    <button class="rm-item danger" data-act="del">${inTrash ? "🗑️ Vymazať navždy" : "🗑️ Do koša"}</button>`;
 
   // pozícia pri tlačidle
   const r = anchor.getBoundingClientRect();
@@ -547,10 +999,10 @@ function openRowMenu(id, anchor) {
       if (act === "edit") { openModal(id); }
       else if (act === "del") { del(id); }
       else if (act === "delphoto") {
-        if (confirm("Naozaj vymazať fotku?")) { row.photo = ""; save(); render(); toast("Fotka vymazaná"); }
+        if (confirm("Naozaj vymazať fotku?")) { setPhoto(id, "").then(() => { render(); toast("Fotka vymazaná"); }); }
       }
-      else if (act === "active") { row.bucket = ""; save(); render(); toast("Vrátené medzi aktívne"); }
-      else { row.bucket = act; save(); render(); toast(act === "mail" ? "Presunuté: Odoslané na mail" : "Presunuté: Vypredané"); }
+      else if (act === "active") { row.bucket = ""; save(); render(); toast("Vrátené do Pripravuje sa"); }
+      else { row.bucket = act; save(); render(); toast(act === "mail" ? "Presunuté: Odoslané na mail" : "Presunuté: Hotové"); }
       closeRowMenu();
     });
   });
@@ -560,19 +1012,44 @@ document.addEventListener("click", (e) => {
   if (!e.target.closest("#rowMenu") && !e.target.closest("[data-menu]")) closeRowMenu();
 });
 
+/* Zmenší a skomprimuje fotku (JPEG) -> menšia veľkosť pre localStorage.
+   Vráti Promise s data URL. max = najdlhšia strana v px. */
+function resizeImage(file, max = 1000, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > max || height > max) {
+          if (width >= height) { height = Math.round(height * max / width); width = max; }
+          else { width = Math.round(width * max / height); height = max; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width; canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 function uploadPhotoFor(id) {
   const inp = document.createElement("input");
   inp.type = "file"; inp.accept = "image/*";
-  inp.onchange = () => {
+  inp.onchange = async () => {
     const f = inp.files[0];
     if (!f) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const row = data.find((r) => r.id === id);
-      row.photo = reader.result;
-      save(); render(); toast("Fotka pridaná");
-    };
-    reader.readAsDataURL(f);
+    try {
+      const dataUrl = await resizeImage(f);
+      if (await setPhoto(id, dataUrl)) { render(); toast("Fotka pridaná"); }
+    } catch (err) {
+      toast("Fotku sa nepodarilo načítať");
+    }
   };
   inp.click();
 }
@@ -638,19 +1115,39 @@ function hideTextZoom() {
 
 function del(id) {
   const row = data.find((r) => r.id === id);
-  if (!confirm(`Naozaj vymazať „${row.name}"?`)) return;
-  data = data.filter((r) => r.id !== id);
-  save(); render(); toast("Vymazané");
+  if (!row) return;
+  if (row.bucket === "trash") {
+    // Už je v koši → natrvalo vymazať
+    if (!confirm(`Natrvalo vymazať „${row.name}"? Túto akciu nie je možné vrátiť.`)) return;
+    data = data.filter((r) => r.id !== id);
+    setPhoto(id, ""); // vymazať aj fotku z IndexedDB
+    save(); render(); toast("Natrvalo vymazané");
+  } else {
+    // Prvé vymazanie → presunúť do koša
+    row.bucket = "trash";
+    save(); render(); toast("Presunuté do koša");
+  }
 }
 
 /* ---------- Modal ---------- */
+// Naplní datalist existujúcimi názvami kolekcií (na rýchly výber)
+function fillCollectionList() {
+  const dl = $("#collectionList");
+  if (!dl) return;
+  const names = [...new Set(data.map((r) => collectionName(r)).filter(Boolean))].sort((a, b) => a.localeCompare(b, "sk"));
+  dl.innerHTML = names.map((n) => `<option value="${n}"></option>`).join("");
+}
+
 function openModal(id) {
   editingPhoto = "";
   const row = id ? data.find((r) => r.id === id) : null;
   $("#modalTitle").textContent = row ? "Upraviť produkt" : "Nový produkt";
   $("#f-id").value = row ? row.id : "";
+  $("#f-category").value = row ? productCategory(row) : PAGE_CATEGORY;
   $("#f-code").value = row ? row.code : "";
   $("#f-name").value = row ? row.name : "";
+  if ($("#f-collection")) $("#f-collection").value = row ? (row.collection || "") : "";
+  fillCollectionList();
   $("#f-qty").value = row ? row.qty : "";
   $("#f-place").value = row ? row.place : "RRR";
   $("#f-date").value = row ? row.date : new Date().toISOString().slice(0, 10);
@@ -659,23 +1156,27 @@ function openModal(id) {
   $("#f-note").value = row ? row.note : "";
   $("#f-status").value = row ? row.status : "";
   $("#f-kovanie").value = row ? row.kovanie : "";
-  $("#f-transfer").value = row ? row.transferNo : "";
+  $("#f-transferUp").value = row ? row.transferUp : "";
+  $("#f-transferDown").value = row ? row.transferDown : "";
   $("#f-photoStatus").value = row ? row.photoStatus : "";
   $("#f-photoLink").value = row ? row.photoLink : "";
   $("#f-webSk").value = row ? row.webSk : "";
   $("#f-webCz").value = row ? row.webCz : "";
-  editingPhoto = row ? row.photo : "";
+  $("#f-deadline").value = row ? (row.deadline || "") : "";
+  editingPhoto = row ? photoOf(row) : "";
   $("#photoPreview").innerHTML = editingPhoto ? `<img src="${editingPhoto}" />` : "Kliknite pre nahratie fotky";
   $("#photoRemoveBtn").style.display = editingPhoto ? "inline-flex" : "none";
   $("#modalBg").classList.add("open");
 }
 function closeModal() { $("#modalBg").classList.remove("open"); }
 
-function saveModal() {
+async function saveModal() {
   const id = $("#f-id").value;
   const rec = {
+    category: $("#f-category").value,
     code: $("#f-code").value.trim(),
     name: $("#f-name").value.trim(),
+    collection: $("#f-collection")?.value.trim() || "",
     qty: Math.max(0, parseInt($("#f-qty").value) || 0),
     place: $("#f-place").value.trim(),
     date: $("#f-date").value,
@@ -684,26 +1185,34 @@ function saveModal() {
     note: $("#f-note").value.trim(),
     status: $("#f-status").value,
     kovanie: $("#f-kovanie").value,
-    transferNo: $("#f-transfer").value.trim(),
+    transferUp: $("#f-transferUp").value.trim(),
+    transferDown: $("#f-transferDown").value.trim(),
     photoStatus: $("#f-photoStatus").value,
     photoLink: $("#f-photoLink").value.trim(),
     webSk: $("#f-webSk").value.trim(),
     webCz: $("#f-webCz").value.trim(),
-    photo: editingPhoto || "",
+    deadline: $("#f-deadline").value,
+    photo: "",
   };
   if (!rec.code || !rec.name) { toast("Vyplňte Kód a Názov"); return; }
+  let savedId;
   if (id) {
-    Object.assign(data.find((r) => r.id === +id), rec);
+    savedId = +id;
+    Object.assign(data.find((r) => r.id === savedId), rec);
   } else {
-    data.push({ id: nextId(), ...rec });
+    savedId = nextId();
+    data.push({ id: savedId, ...rec });
   }
-  save(); closeModal(); render(); toast("Uložené");
+  if (!save()) return;
+  // Fotka ide do IndexedDB (nie do localStorage)
+  await setPhoto(savedId, editingPhoto || "");
+  closeModal(); render(); toast("Uložené");
 }
 
 /* ---------- Export ---------- */
 function exportCSV() {
-  const cols = ["code", "name", "qty", "place", "kovanie", "status", "transferNo", "photoStatus", "photoLink", "webSk", "webCz", "date", "desc", "price", "note", "bucket"];
-  const head = ["Kód", "Názov produktu", "Počet ks", "Miesto výroby", "Kovanie", "Stav", "Číslo presunu", "Stav fotenia", "Odkaz na fotky", "Web SK", "Web CZ", "Dátum uverejnenia", "Popis", "Cena", "Poznámka", "Kôš"];
+  const cols = ["category", "collection", "code", "name", "qty", "place", "kovanie", "status", "transferUp", "transferDown", "photoStatus", "photoLink", "webSk", "webCz", "date", "deadline", "desc", "price", "note", "bucket"];
+  const head = ["Kategória", "Kolekcia", "Kód", "Názov produktu", "Počet ks", "Miesto výroby", "Kovanie", "Stav", "Presun na fotenie", "Presun na sklad", "Stav fotenia", "Odkaz na fotky", "Web SK", "Web CZ", "Dátum uverejnenia", "Deadline", "Popis", "Cena", "Poznámka", "Kôš"];
   const lines = [head.join(",")];
   data.forEach((r) => {
     lines.push(cols.map((c) => `"${String(r[c] ?? "").replace(/"/g, '""')}"`).join(","));
@@ -716,24 +1225,11 @@ function exportCSV() {
 }
 
 /* ---------- Init ---------- */
-function initPlaceFilter() {
-  const places = [...new Set(data.map((r) => r.place).filter(Boolean))].sort();
-  const sel = $("#placeFilter");
-  places.forEach((p) => {
-    const o = document.createElement("option");
-    o.value = p; o.textContent = p; sel.appendChild(o);
-  });
-}
 function fillModalSelects() {
   const opt = (o) => `<option value="${esc(o)}">${o || "—"}</option>`;
   $("#f-status").innerHTML = STATUSES.map(opt).join("");
   $("#f-kovanie").innerHTML = KOVANIE.map(opt).join("");
   $("#f-photoStatus").innerHTML = PHOTO_STATUSES.map(opt).join("");
-}
-function initPresence() {
-  const people = [{ n: "Dajana", c: "#753BBD" }, { n: "Oli", c: "#512D6D" }, { n: "Tím", c: "#C1A7E2" }];
-  $("#avatars").innerHTML = people.map((p) => `<div class="av" style="background:${p.c}">${p.n[0]}</div>`).join("");
-  $("#presenceText").textContent = `${people.length} online`;
 }
 
 document.querySelectorAll("thead th[data-sort]").forEach((th) => {
@@ -743,41 +1239,60 @@ document.querySelectorAll("thead th[data-sort]").forEach((th) => {
     render();
   });
 });
-$("#selAll").addEventListener("change", (e) => {
+$("#selAll")?.addEventListener("change", (e) => {
   const ids = getView().map((r) => r.id);
   if (e.target.checked) ids.forEach((id) => selected.add(id));
   else ids.forEach((id) => selected.delete(id));
   render();
   renderBulkBar();
 });
-$("#searchInput").addEventListener("input", render);
-$("#placeFilter").addEventListener("change", render);
-$("#stockFilter").addEventListener("change", render);
-$("#addBtn").addEventListener("click", () => openModal(null));
-$("#exportBtn").addEventListener("click", exportCSV);
-$("#cancelBtn").addEventListener("click", closeModal);
-$("#saveBtn").addEventListener("click", saveModal);
-$("#modalBg").addEventListener("click", (e) => { if (e.target.id === "modalBg") closeModal(); });
-$("#photoDrop").addEventListener("click", () => $("#f-photo").click());
-$("#f-photo").addEventListener("change", () => {
+$("#searchInput")?.addEventListener("input", render);
+$("#addBtn")?.addEventListener("click", () => openModal(null));
+$("#exportBtn")?.addEventListener("click", exportCSV);
+$("#backupPhotosBtn")?.addEventListener("click", (e) => backupPhotos(e.currentTarget));
+$("#trashBtn")?.addEventListener("click", () => { currentBucket = "trash"; render(); });
+$("#cancelBtn")?.addEventListener("click", closeModal);
+$("#saveBtn")?.addEventListener("click", saveModal);
+$("#modalBg")?.addEventListener("click", (e) => { if (e.target.id === "modalBg") closeModal(); });
+$("#photoDrop")?.addEventListener("click", () => $("#f-photo").click());
+$("#f-photo")?.addEventListener("change", async () => {
   const f = $("#f-photo").files[0];
   if (!f) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    editingPhoto = reader.result;
+  try {
+    editingPhoto = await resizeImage(f);
     $("#photoPreview").innerHTML = `<img src="${editingPhoto}" />`;
     $("#photoRemoveBtn").style.display = "inline-flex";
-  };
-  reader.readAsDataURL(f);
+  } catch (err) {
+    toast("Fotku sa nepodarilo načítať");
+  }
 });
-$("#photoRemoveBtn").addEventListener("click", () => {
+$("#photoRemoveBtn")?.addEventListener("click", () => {
   editingPhoto = "";
   $("#f-photo").value = "";
   $("#photoPreview").innerHTML = "Kliknite pre nahratie fotky";
   $("#photoRemoveBtn").style.display = "none";
 });
 
-initPlaceFilter();
 fillModalSelects();
-initPresence();
 render();
+// Načítať fotky z IndexedDB a presunúť staré fotky z localStorage
+(async () => {
+  await loadAllPhotos();
+  await migratePhotosToIDB(data);
+  render();
+  await syncFromServer(); // spoločné dáta zo servera (všetky zariadenia)
+})();
+
+/* ── Prepínač grafov ── */
+(function() {
+  const btn    = document.getElementById("chartsToggle");
+  const section = document.getElementById("charts");
+  if (!btn || !section) return;
+  btn.addEventListener("click", () => {
+    const open = section.style.display !== "none";
+    section.style.display = open ? "none" : "";
+    btn.setAttribute("aria-expanded", String(!open));
+    btn.querySelector(".charts-toggle-arrow").textContent = open ? "▼" : "▲";
+    if (!open) renderCharts();
+  });
+})();

@@ -35,3 +35,17 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   created_at    TEXT NOT NULL
 );
+
+-- Whole-document model: celý zoznam produktov je jeden JSON blob (key='products').
+CREATE TABLE IF NOT EXISTS state (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+-- Fotky ako base64 data URL (id → data).
+CREATE TABLE IF NOT EXISTS photos (
+  id         TEXT PRIMARY KEY,
+  data       TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);

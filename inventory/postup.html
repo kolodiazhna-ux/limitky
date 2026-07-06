@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dajana Rodriguez — Postup limitiek</title>
+  <link rel="icon" href="./assets/symbol/purple.svg" />
+  <link rel="stylesheet" href="./styles.css" />
+  <style>
+    .postup-wrap {
+      max-width: 780px;
+      margin: 32px auto;
+      padding: 0 20px 60px;
+    }
+    .postup-wrap h2 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0 0 24px;
+    }
+    .step-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .step {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 18px;
+      transition: box-shadow .15s;
+    }
+    .step:hover { box-shadow: 0 2px 10px rgba(0,0,0,.07); }
+    .step.highlight-orange {
+      background: #fff3e0;
+      border-color: #f5a623;
+    }
+    .step.highlight-green {
+      background: #e8f5e9;
+      border-color: #4caf50;
+    }
+    .step-num {
+      flex-shrink: 0;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--purple, #7c3aed);
+      color: #fff;
+      font-size: .8rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .step.highlight-orange .step-num { background: #f5a623; }
+    .step.highlight-green .step-num { background: #4caf50; }
+    .step-body { flex: 1; }
+    .step-text {
+      font-size: .92rem;
+      color: var(--text);
+      line-height: 1.55;
+      margin: 0;
+    }
+    .step-note {
+      margin-top: 6px;
+      font-size: .82rem;
+      color: #666;
+      background: rgba(124,58,237,.06);
+      border-left: 3px solid var(--purple, #7c3aed);
+      padding: 6px 10px;
+      border-radius: 0 6px 6px 0;
+    }
+    .step.highlight-orange .step-note { background: rgba(245,166,35,.08); border-color: #f5a623; }
+    .step.highlight-green .step-note { background: rgba(76,175,80,.08); border-color: #4caf50; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="./assets/logo/white.svg" alt="Dajana Rodriguez" />
+      <div class="titles">
+        <h1>Postup limitiek</h1>
+        <p>Ako funguje výroba &amp; uverejnenie</p>
+      </div>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="spacer"></div>
+    <a class="btn btn-ghost" href="./nove.html">Nové produkty</a>
+    <a class="btn btn-ghost" href="./specialka.html">Špeciálka</a>
+    <a class="btn btn-ghost" href="./rdf.html">RDF produkty</a>
+    <a class="btn btn-ghost" href="./kozmetika.html">Kozmetika</a>
+    <a class="btn btn-ghost active" href="./postup.html">Postup</a>
+    <a class="btn btn-ghost" href="./index.html">Limitky</a>
+    <a class="btn btn-primary" href="./novy-produkt.html">+ Nový produkt</a>
+  </div>
+
+  <div class="postup-wrap">
+    <h2>Postup pre fungovanie limitiek — 14 krokov</h2>
+    <div class="step-list">
+
+      <div class="step highlight-green">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <p class="step-text">Komunikácia s pani Rodriguezovou ohľadom výroby limitiek — limitky sa snažíme mať vždy dopredu vyrobené a nafotené, aby sme mali nejakú rezervu.</p>
+          <p class="step-note">Vytvoriť skupinu na messengeri „limitky" a dať info p. Rodriguezovej · vytvoriť skupinu na Slacku s Mirkou Z.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <p class="step-text">Keď máme informáciu o nových limitkách, nahodíme do plánu evidencia.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <p class="step-text">Kabelky doručí Palino Šemoda do centrály z Uheriec, odkiaľ dá Mirka Zásterová informáciu o počte ks, ktoré treba nahodiť do výroby.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <p class="step-text">Následne treba vytvoriť inventárovú položku a výrobný model, vytvoriť produkty vo výrobe a označiť ich ako v stave „vyrába sa".</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <p class="step-text">Mirka ich po kontrole posiela do Bošian a do predajne PE pre Mirku Václavovú na natočenie contentu.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <p class="step-text">Treba mať odkliknuté presunky.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">7</div>
+        <div class="step-body">
+          <p class="step-text">Následne treba odkomunikovať dodanie nových limitiek na fotenie do officu pre Oli.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">8</div>
+        <div class="step-body">
+          <p class="step-text">Naplánovať limitky do Asany v projekte Limitky a marketingový kalendár + info do skupiny „limitky" na Slacku pre Oli a Veroniku Vighovú.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">9</div>
+        <div class="step-body">
+          <p class="step-text">Vytvoriť produkt v administrácii — vyklikať informácie podľa stanovených pravidiel + dodatočne nahrať fotky.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">10</div>
+        <div class="step-body">
+          <p class="step-text">V deň uverejnenia treba všetko v produkte skontrolovať, označiť produkt ako aktívny a nastaviť uverejnenie na daný deň a čas <strong>17:55</strong>.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">11</div>
+        <div class="step-body">
+          <p class="step-text">Produkt treba zoradiť na prvé miesto v produktoch.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">12</div>
+        <div class="step-body">
+          <p class="step-text">Podľa sezóny riešiť ideálne aj farby limitiek — ked bude Veľká noc tak niečo farebnejšie, takisto cez leto niečo farebné/veselé.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">13</div>
+        <div class="step-body">
+          <p class="step-text">Veronike treba posielať linky na daný produkt, aby to vedela použiť v emailingu — SK link a CZ link.</p>
+        </div>
+      </div>
+
+      <div class="step highlight-orange">
+        <div class="step-num">14</div>
+        <div class="step-body">
+          <p class="step-text">Dávať pozor na to, aby boli vždy všetky limitky odkliknuté v presunkách — či už ide o sklad Bošany, predajňu Partizánske ale aj office BA!</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Login overlay -->
+  <div class="auth-overlay" id="authOverlay">
+    <form class="auth-card" id="authForm" autocomplete="on">
+      <img class="auth-logo" src="./assets/logo/purple.svg" alt="Dajana Rodriguez" />
+      <h2 id="authTitle">Prihlásenie</h2>
+      <p class="auth-sub">Limitky <p class="auth-sub">Sklad &amp; Inventár</p>amp; Inventár</p>
+      <label for="auth-email">Email</label>
+      <input id="auth-email" type="email" required placeholder="vas@email.sk" autocomplete="email" />
+      <label for="auth-password">Heslo</label>
+      <input id="auth-password" type="password" required placeholder="••••••••" autocomplete="current-password" />
+      <div class="auth-error" id="authError" style="display:none"></div>
+      <button class="btn btn-primary" id="authSubmit" type="submit">Prihlásiť sa</button>
+      <p class="auth-toggle">
+        <span id="authTogglePrompt">Nemáte účet?</span>
+        <a href="#" id="authToggle">Zaregistrujte sa</a>
+      </p>
+    </form>
+  </div>
+
+  <script src="./auth.js?v=20260704"></script>
+</body>
+</html>

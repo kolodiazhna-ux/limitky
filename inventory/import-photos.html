@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dajana Rodriguez — Import fotiek</title>
+  <link rel="icon" href="./assets/symbol/purple.svg" />
+  <link rel="stylesheet" href="./styles.css" />
+  <style>
+    .import-wrap {
+      max-width: 600px;
+      margin: 48px auto;
+      padding: 0 20px 60px;
+      text-align: center;
+    }
+    .import-card {
+      background: #fff;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 40px 32px;
+    }
+    .import-card h2 {
+      font-size: 1.3rem;
+      margin: 0 0 8px;
+      color: var(--primary-dark);
+    }
+    .import-card p {
+      color: var(--muted);
+      font-size: .92rem;
+      line-height: 1.6;
+      margin: 0 0 28px;
+    }
+    .drop-zone {
+      border: 2px dashed var(--primary-light);
+      border-radius: 10px;
+      padding: 40px 20px;
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+      margin-bottom: 24px;
+    }
+    .drop-zone:hover, .drop-zone.over {
+      background: #f5f0fc;
+      border-color: var(--primary);
+    }
+    .drop-zone .icon { font-size: 2.4rem; }
+    .drop-zone .hint {
+      margin: 10px 0 0;
+      font-size: .9rem;
+      color: var(--muted);
+    }
+    #fileInput { display: none; }
+    #log {
+      background: var(--smoke-light);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: left;
+      font-size: .82rem;
+      line-height: 1.7;
+      max-height: 300px;
+      overflow-y: auto;
+      display: none;
+      margin-top: 20px;
+    }
+    #log .ok   { color: #2e9e6b; }
+    #log .warn { color: #d68910; }
+    #log .err  { color: var(--danger); }
+    .result-banner {
+      display: none;
+      margin-top: 20px;
+      padding: 14px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: .95rem;
+    }
+    .result-banner.success { background: #e8f5e9; color: #2e7d32; }
+    .result-banner.warning { background: #fff3e0; color: #e65100; }
+    .steps {
+      text-align: left;
+      background: #f9f6fd;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 28px;
+    }
+    .steps h3 { margin: 0 0 12px; font-size: .95rem; color: var(--primary-dark); }
+    .steps ol  { margin: 0; padding-left: 20px; }
+    .steps li  { font-size: .88rem; color: var(--ink); line-height: 1.8; }
+    .steps a   { color: var(--primary); }
+    .steps code {
+      background: #ede8f7;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: .83rem;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="./assets/logo/white.svg" alt="Dajana Rodriguez" />
+      <div class="titles">
+        <h1>Import fotiek</h1>
+        <p>Z Google Sheets do skladu</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <a class="btn btn-ghost" href="./index.html" style="color:#fff;border-color:rgba(255,255,255,.4)">← Späť na sklad</a>
+    </div>
+  </header>
+
+  <div class="import-wrap">
+    <div class="import-card">
+      <h2>Import fotiek zo Sheets</h2>
+      <p>Nahraj JSON súbor vygenerovaný Apps Scriptom. Fotky sa automaticky priradia k produktom podľa kódu.</p>
+
+      <div class="steps">
+        <h3>📋 Ako na to:</h3>
+        <ol>
+          <li>Otvor svoju <a href="https://docs.google.com/spreadsheets/d/1OXaOXZphL0WiSwhSt9AOz4CK_lMpobx4QNWAoIX4ajc" target="_blank">Google Tabuľku</a></li>
+          <li>Klikni <strong>Extensions → Apps Script</strong></li>
+          <li>Vymaž všetok kód a vlož obsah súboru <code>export-photos-script.gs</code></li>
+          <li>Klikni ▶ <strong>Run</strong> → povoliť prístupy</li>
+          <li>Stiahni vygenerovaný <code>limitky-photos-export.json</code></li>
+          <li>Nahraj ho tu dole 👇</li>
+        </ol>
+      </div>
+
+      <div class="drop-zone" id="dropZone">
+        <div class="icon">📂</div>
+        <div class="hint">Klikni alebo presuň JSON súbor sem</div>
+      </div>
+      <input type="file" id="fileInput" accept=".json,application/json" />
+
+      <div class="result-banner" id="resultBanner"></div>
+      <div id="log"></div>
+
+      <div style="margin-top:24px;">
+        <a class="btn btn-primary" href="./index.html" id="goToSklad" style="display:none">→ Prejsť na sklad</a>
+      </div>
+
+      <!-- ── Sync quantities ── -->
+      <hr style="border:none;border-top:1px solid var(--smoke);margin:32px 0;" />
+      <h2 style="font-size:1.1rem;color:var(--primary-dark);margin:0 0 8px;">Aktualizovať počty kusov</h2>
+      <p style="color:var(--muted);font-size:.88rem;margin:0 0 18px;">Nastaví počty kusov presne podľa tabuľky (prepisuje to, čo je teraz v sklade).</p>
+      <button class="btn btn-ghost" id="syncQtyBtn">🔄 Synchronizovať počty z tabuľky</button>
+      <div class="result-banner" id="qtyBanner"></div>
+    </div>
+  </div>
+
+  <!-- Login overlay -->
+  <div class="auth-overlay" id="authOverlay">
+    <form class="auth-card" id="authForm" autocomplete="on">
+      <img class="auth-logo" src="./assets/logo/purple.svg" alt="Dajana Rodriguez" />
+      <h2 id="authTitle">Prihlásenie</h2>
+      <p class="auth-sub">Limitky <p class="auth-sub">Sklad &amp; Inventár</p>amp; Inventár</p>
+      <label for="auth-email">Email</label>
+      <input id="auth-email" type="email" required placeholder="vas@email.sk" autocomplete="email" />
+      <label for="auth-password">Heslo</label>
+      <input id="auth-password" type="password" required placeholder="••••••••" autocomplete="current-password" />
+      <div class="auth-error" id="authError" style="display:none"></div>
+      <button class="btn btn-primary" id="authSubmit" type="submit">Prihlásiť sa</button>
+      <p class="auth-toggle">
+        <span id="authTogglePrompt">Nemáte účet?</span>
+        <a href="#" id="authToggle">Zaregistrujte sa</a>
+      </p>
+    </form>
+  </div>
+
+  <script src="./auth.js?v=20260704"></script>
+  <script>
+    const STORAGE_KEY = "dr_inventory_v2";
+    const dropZone  = document.getElementById("dropZone");
+    const fileInput = document.getElementById("fileInput");
+    const logEl     = document.getElementById("log");
+    const banner    = document.getElementById("resultBanner");
+
+    dropZone.addEventListener("click", () => fileInput.click());
+    dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("over"); });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("over"));
+    dropZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropZone.classList.remove("over");
+      const file = e.dataTransfer.files[0];
+      if (file) processFile(file);
+    });
+    fileInput.addEventListener("change", (e) => {
+      if (e.target.files[0]) processFile(e.target.files[0]);
+    });
+
+    function processFile(file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const photos = JSON.parse(ev.target.result);
+          importPhotos(photos);
+        } catch (err) {
+          showBanner("❌ Neplatný JSON súbor: " + err.message, "warning");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function importPhotos(photos) {
+      let data;
+      try {
+        data = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+      } catch (e) {
+        data = [];
+      }
+
+      logEl.style.display = "block";
+      logEl.innerHTML = "";
+
+      let updated = 0;
+      let notFound = 0;
+
+      photos.forEach(({ code, photo }) => {
+        const row = data.find(r => r.code === code);
+        if (row) {
+          row.photo = photo;
+          updated++;
+          log("✓ " + code, "ok");
+        } else {
+          notFound++;
+          log("⚠ Kód nenájdený v sklade: " + code, "warn");
+        }
+      });
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+      if (updated > 0) {
+        showBanner(
+          "✅ Hotovo! Aktualizovaných " + updated + " fotiek." +
+          (notFound > 0 ? " (" + notFound + " kódov nenájdených)" : ""),
+          "success"
+        );
+        document.getElementById("goToSklad").style.display = "inline-flex";
+      } else {
+        showBanner("⚠ Žiadna fotka sa nepárovala. Skontroluj kódy produktov.", "warning");
+      }
+    }
+
+    function log(msg, cls) {
+      const line = document.createElement("div");
+      line.className = cls || "";
+      line.textContent = msg;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function showBanner(msg, type) {
+      banner.textContent = msg;
+      banner.className = "result-banner " + type;
+      banner.style.display = "block";
+    }
+
+    /* ── Sync quantities from spreadsheet ── */
+    // Aktuálne počty priamo z Google Sheets tabuľky (ručne overené)
+    const SHEET_QTY = {
+      "MIALIM67-Z":   6,
+      "MIALIM68":     7,
+      "KTLIM41":      4,
+      "MIALIM69-Z":  10,
+      "LILLIM57-Z":   3,
+      "MIALIM70":     3,
+      "MIALIM71":     3,
+      "LILLIM58":     4,
+      "LILLIM59":     2,
+      "MICLIM10-Z":   6,
+      "KTLIM42-Z":    2,
+      "KTLIM43-Z":    3,
+      "LILLIM60-Z":   3,
+      "MIALIM72-Z":   3,
+      "MIALIM73":     4,
+      "MIALIM74":     2,
+      "MARLIM15":     5,
+      "MARLIM16":     4,
+      "LILLIM62":     4,
+      "MIALIM75":     5,
+      "MIALIM76":     2,
+      "MARLIM17":     5,
+      "MIALIM77-002": 1,
+      "MIALIM78":     2,
+      "MARLIM18":     3,
+      "LILLIM61":     3,
+      "LILLIM63":     6,
+      "LILLIM64-Z":   3,
+      "LILLIM55-Z-001": 1,
+      "MIALIM65-Z-001": 1,
+      "MIALIM-Z-043": 1,
+      "LILLIM65":     4,
+      "KTLIM44-Z":    2,
+      "KTLIM45-Z":    1,
+      "LEALIM1-Z":    5,
+      "KTLIM46-Z":    2,
+      "MARLIM19":     6,
+      "ADRLIM8":      5,
+      "LILLIM66":     4,
+    };
+
+    document.getElementById("syncQtyBtn").addEventListener("click", () => {
+      let data;
+      try { data = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+      catch (e) { data = []; }
+
+      let updated = 0;
+      data.forEach(row => {
+        if (row.code && SHEET_QTY[row.code] !== undefined) {
+          row.qty = SHEET_QTY[row.code];
+          updated++;
+        }
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+      const qtyBanner = document.getElementById("qtyBanner");
+      qtyBanner.textContent = "✅ Aktualizovaných " + updated + " počtov kusov podľa tabuľky.";
+      qtyBanner.className = "result-banner success";
+      qtyBanner.style.display = "block";
+    });
+  </script>
+</body>
+</html>
