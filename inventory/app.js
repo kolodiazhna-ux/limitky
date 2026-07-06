@@ -462,6 +462,16 @@ const PAGE_CATEGORY = document.body.dataset.category || "limitka";
 let currentBucket = "";
 let selected = new Set();
 
+// Zobrazenie zoznamu: "table" (riadky) alebo "grid" (karty s fotkou)
+let viewMode = localStorage.getItem("dr_view_mode") || "table";
+function setViewMode(m) {
+  viewMode = m;
+  try { localStorage.setItem("dr_view_mode", m); } catch (e) {}
+  $("#vmGrid")?.classList.toggle("active", m === "grid");
+  $("#vmTable")?.classList.toggle("active", m === "table");
+  render();
+}
+
 let data = load();
 let sortKey = "date";
 let sortDir = -1; // -1 = desc, 1 = asc
@@ -624,14 +634,74 @@ function getView() {
 /* ---------- Render ---------- */
 function render() {
   const rows = getView();
-  const tbody = $("#tbody");
-  tbody.innerHTML = rows.map(rowHtml).join("");
-  $("#emptyState").style.display = rows.length ? "none" : "block";
-  renderFooter(rows);
+  const grid = $("#gridView");
+  const tableWrap = document.querySelector(".table-wrap");
+
+  if (viewMode === "grid" && grid) {
+    // Zobrazenie ako karty (ikony s fotkou)
+    grid.style.display = "";
+    if (tableWrap) tableWrap.style.display = "none";
+    grid.innerHTML = rows.length
+      ? rows.map(cardHtml).join("")
+      : `<div class="empty-state" style="grid-column:1/-1"><h3>Žiadne produkty</h3><p>Pridajte prvý produkt alebo zmeňte filter.</p></div>`;
+    bindCardEvents();
+  } else {
+    if (grid) grid.style.display = "none";
+    if (tableWrap) tableWrap.style.display = "";
+    const tbody = $("#tbody");
+    tbody.innerHTML = rows.map(rowHtml).join("");
+    $("#emptyState").style.display = rows.length ? "none" : "block";
+    renderFooter(rows);
+    renderHeaderArrows();
+    bindRowEvents();
+  }
   renderTabs();
   renderCharts();
-  renderHeaderArrows();
-  bindRowEvents();
+}
+
+/* ---------- Zobrazenie: karty (ikony) ---------- */
+function cardHtml(r) {
+  const ph = photoOf(r);
+  const photo = ph
+    ? `<img class="p-card-photo" src="${ph}" data-photo="${r.id}" alt="" />`
+    : `<div class="p-card-photo empty" data-photo="${r.id}">📷 Pridať foto</div>`;
+  return `<div class="p-card" data-id="${r.id}">
+    ${photo}
+    <div class="p-card-body">
+      <div class="p-card-top">
+        <span class="p-card-code">${esc(r.code)}</span>
+        ${r.status ? `<span class="p-card-badge ${statusClass(r.status)}">${esc(r.status)}</span>` : ""}
+      </div>
+      <div class="p-card-name">${esc(r.name)}</div>
+      <div class="p-card-meta">
+        <span>Ks: <span class="qty-badge ${qtyClass(r.qty)}">${r.qty}</span></span>
+        ${r.price ? `<span class="price">${esc(r.price)}</span>` : ""}
+        ${r.date ? `<span>${fmtDate(r.date)}</span>` : ""}
+      </div>
+      ${r.desc ? `<div class="p-card-desc">${esc(r.desc)}</div>` : ""}
+      <div class="p-card-actions">
+        <button class="btn btn-ghost" data-cardedit="${r.id}">✏️ Upraviť</button>
+        <button class="icon-btn" data-menu="${r.id}" title="Akcie">&#8943;</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function bindCardEvents() {
+  document.querySelectorAll("#gridView [data-photo]").forEach((el) => {
+    el.addEventListener("click", () => uploadPhotoFor(+el.dataset.photo));
+  });
+  document.querySelectorAll("#gridView img.p-card-photo").forEach((el) => {
+    el.addEventListener("mouseenter", () => showPhotoZoom(el));
+    el.addEventListener("mousemove", positionPhotoZoom);
+    el.addEventListener("mouseleave", hidePhotoZoom);
+  });
+  document.querySelectorAll("#gridView [data-cardedit]").forEach((b) => {
+    b.addEventListener("click", () => openModal(+b.dataset.cardedit));
+  });
+  document.querySelectorAll("#gridView [data-menu]").forEach((b) => {
+    b.addEventListener("click", (e) => { e.stopPropagation(); openRowMenu(+b.dataset.menu, b); });
+  });
 }
 
 // Súhrn na konci zoznamu: počet produktov a kusov (sumiek) v aktuálnom výbere
@@ -1318,6 +1388,10 @@ $("#selAll")?.addEventListener("change", (e) => {
   renderBulkBar();
 });
 $("#searchInput")?.addEventListener("input", render);
+$("#vmGrid")?.addEventListener("click", () => setViewMode("grid"));
+$("#vmTable")?.addEventListener("click", () => setViewMode("table"));
+$("#vmGrid")?.classList.toggle("active", viewMode === "grid");
+$("#vmTable")?.classList.toggle("active", viewMode === "table");
 $("#addBtn")?.addEventListener("click", () => openModal(null));
 $("#exportBtn")?.addEventListener("click", exportCSV);
 $("#backupPhotosBtn")?.addEventListener("click", (e) => backupPhotos(e.currentTarget));
