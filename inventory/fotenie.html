@@ -89,7 +89,7 @@
   .cat-tab.active { background: var(--purple); border-color: var(--purple); color: var(--white); }
 
   /* STATS */
-  .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 10px 12px; background: var(--white); border-bottom: 1px solid var(--gray2); }
+  .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 6px; padding: 10px 12px; background: var(--white); border-bottom: 1px solid var(--gray2); }
   .stat { text-align: center; padding: 8px 4px; border-radius: 10px; cursor: pointer; transition: opacity 0.15s; border: 2px solid transparent; }
   .stat:active { opacity: 0.7; }
   .stat.active-filter { border-color: currentColor; }
@@ -97,6 +97,7 @@
   .stat-label { font-size: 10px; color: var(--gray3); margin-top: 2px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
   .stat-all .stat-num { color: var(--text); }
   .stat-preparing .stat-num { color: var(--teal); }
+  .stat-partizanske .stat-num { color: var(--purple); }
   .stat-sent .stat-num { color: var(--orange); }
   .stat-returned .stat-num { color: var(--blue); }
   .stat-published .stat-num { color: var(--green); }
@@ -124,6 +125,7 @@
   .card { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; transition: transform 0.15s; border-left: 5px solid var(--gray2); }
   .card:active { transform: scale(0.98); }
   .card.status-preparing { border-left-color: var(--teal); background: #E0F7FA; }
+  .card.status-partizanske { border-left-color: var(--purple); background: #F3EDFB; }
   .card.status-sent { border-left-color: var(--orange); }
   .card.status-returned { border-left-color: var(--blue); }
   .card.status-published { border-left-color: var(--green); background: #F6FFF8; }
@@ -136,6 +138,7 @@
   .card-status-badge { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; }
   .badge-stock { background: var(--gray); color: var(--gray3); }
   .badge-preparing { background: #E0F7FA; color: var(--teal); }
+  .badge-partizanske { background: #F3EDFB; color: var(--purple); }
   .badge-sent { background: #FFF3E0; color: var(--orange); }
   .badge-returned { background: #E3F2FD; color: var(--blue); }
   .badge-published { background: #E8F5E9; color: #2E7D32; }
@@ -152,6 +155,8 @@
   .has-status .status-btn:not(.active):hover { background: #E0E0E0 !important; color: #888 !important; }
   .btn-preparing { background: #E0F7FA; color: var(--teal); }
   .btn-preparing.active, .btn-preparing:hover { background: var(--teal); color: white; }
+  .btn-partizanske { background: #F3EDFB; color: var(--purple); }
+  .btn-partizanske.active, .btn-partizanske:hover { background: var(--purple); color: white; }
   .btn-sent { background: #FFF3E0; color: var(--orange); }
   .btn-sent.active, .btn-sent:hover { background: var(--orange); color: white; }
   .btn-returned { background: #E3F2FD; color: var(--blue); }
@@ -169,6 +174,7 @@
   .products-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--gray2); vertical-align: middle; }
   .products-table tr:last-child td { border-bottom: none; }
   .products-table tr.status-preparing td { background: #E0F7FA; }
+  .products-table tr.status-partizanske td { background: #F3EDFB; }
   .products-table tr.status-sent td { background: #FFF8F0; }
   .products-table tr.status-returned td { background: #EEF4FF; }
   .products-table tr.status-published td { background: #F0FFF4; }
@@ -349,7 +355,11 @@
   </div>
   <div class="stat stat-preparing" onclick="filterByStatus('preparing')" id="stat-preparing">
     <div class="stat-num" id="count-preparing">—</div>
-    <div class="stat-label">Bošany/Partizánske</div>
+    <div class="stat-label">Bošany</div>
+  </div>
+  <div class="stat stat-partizanske" onclick="filterByStatus('partizanske')" id="stat-partizanske">
+    <div class="stat-num" id="count-partizanske">—</div>
+    <div class="stat-label">Partizánske</div>
   </div>
   <div class="stat stat-sent" onclick="filterByStatus('sent')" id="stat-sent">
     <div class="stat-num" id="count-sent">—</div>
@@ -483,7 +493,8 @@
       <label>Status</label>
       <select id="fieldStatus">
         <option value="stock">📦 Na sklade</option>
-        <option value="preparing">🔄 Bošany/Partizánske</option>
+        <option value="preparing">🔄 Bošany</option>
+        <option value="partizanske">🏭 Partizánske</option>
         <option value="sent">📤 U fotografa</option>
         <option value="returned">📥 Vrátené z fotenia</option>
         <option value="published">✅ Foto na webe</option>
@@ -797,9 +808,9 @@ function setCategory(cat) {
   renderProducts();
 }
 
-const STATUS_LABELS  = { stock:'Na sklade', preparing:'Bošany/Partizánske', sent:'U fotografa', returned:'Vrátené', published:'Na webe' };
-const STATUS_BADGES  = { stock:'badge-stock', preparing:'badge-preparing', sent:'badge-sent', returned:'badge-returned', published:'badge-published' };
-const STATUS_CLASSES = { stock:'', preparing:'status-preparing', sent:'status-sent', returned:'status-returned', published:'status-published' };
+const STATUS_LABELS  = { stock:'Na sklade', preparing:'Bošany', partizanske:'Partizánske', sent:'U fotografa', returned:'Vrátené', published:'Na webe' };
+const STATUS_BADGES  = { stock:'badge-stock', preparing:'badge-preparing', partizanske:'badge-partizanske', sent:'badge-sent', returned:'badge-returned', published:'badge-published' };
+const STATUS_CLASSES = { stock:'', preparing:'status-preparing', partizanske:'status-partizanske', sent:'status-sent', returned:'status-returned', published:'status-published' };
 const MODEL_PREFIXES = ['MIALIM', 'KTLIM', 'LILLIM', 'FRLIM', 'SMLIM'];
 
 // ─── SYNC STATUS UI ───────────────────────────────────────────────────────────
@@ -852,6 +863,7 @@ function updateStats() {
   const active  = inCat.filter(p => !p.archived && !p.deleted);
   document.getElementById('count-all').textContent = active.length;
   document.getElementById('count-preparing').textContent = active.filter(p => p.fotoStage==='preparing').length;
+  document.getElementById('count-partizanske').textContent = active.filter(p => p.fotoStage==='partizanske').length;
   document.getElementById('count-sent').textContent = active.filter(p => p.fotoStage==='sent').length;
   document.getElementById('count-returned').textContent = active.filter(p => p.fotoStage==='returned').length;
   document.getElementById('count-published').textContent = active.filter(p => p.fotoStage==='published').length;
@@ -922,7 +934,8 @@ function renderGrid(list) {
         ${p.note ? `<div class="card-note">💬 ${esc(p.note)}</div>` : ''}
         ${links ? `<div class="card-links">${links}</div>` : ''}
         <div class="status-btns ${p.fotoStage && p.fotoStage!=='stock' ? 'has-status' : ''}">
-          <button class="status-btn btn-preparing ${p.fotoStage==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🔄 Bošany/Part.</button>
+          <button class="status-btn btn-preparing ${p.fotoStage==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🔄 Bošany</button>
+          <button class="status-btn btn-partizanske ${p.fotoStage==='partizanske'?'active':''}" onclick="setStatus('${p._key}','partizanske')">🏭 Partizánske</button>
           <button class="status-btn btn-sent ${p.fotoStage==='sent'?'active':''}" onclick="setStatus('${p._key}','sent')">📤 Fotograf</button>
           <button class="status-btn btn-returned ${p.fotoStage==='returned'?'active':''}" onclick="setStatus('${p._key}','returned')">📥 Vrátené</button>
           <button class="status-btn btn-published ${p.fotoStage==='published'?'active':''}" onclick="setStatus('${p._key}','published')">✅ Na webe</button>
@@ -982,6 +995,7 @@ function renderTable(list) {
       <td>
         <div class="table-status-btns ${p.fotoStage && p.fotoStage!=='stock' ? 'has-status' : ''}">
           <button class="status-btn btn-preparing ${p.fotoStage==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🔄</button>
+          <button class="status-btn btn-partizanske ${p.fotoStage==='partizanske'?'active':''}" onclick="setStatus('${p._key}','partizanske')">🏭</button>
           <button class="status-btn btn-sent ${p.fotoStage==='sent'?'active':''}" onclick="setStatus('${p._key}','sent')">📤</button>
           <button class="status-btn btn-returned ${p.fotoStage==='returned'?'active':''}" onclick="setStatus('${p._key}','returned')">📥</button>
           <button class="status-btn btn-published ${p.fotoStage==='published'?'active':''}" onclick="setStatus('${p._key}','published')">✅</button>
@@ -1350,6 +1364,7 @@ function exportPDF() {
     h2 { font-size: 14px; margin: 16px 0 6px; padding: 4px 8px; border-radius: 4px; }
     .bg-stock { background: #F5F5F5; }
     .bg-preparing { background: #E0F7FA; }
+    .bg-partizanske { background: #F3EDFB; }
     .bg-sent { background: #FFF3E0; }
     .bg-returned { background: #E3F2FD; }
     .bg-published { background: #E8F5E9; }
@@ -1362,8 +1377,8 @@ function exportPDF() {
   <h1>👜 Limitky — Prehľad produktov</h1>
   <div class="summary">${now} · Celkom: ${active.length} produktov</div>`;
 
-  const statusOrder = ['preparing','sent','returned','published','stock'];
-  const bgClass = { 'Na sklade':'bg-stock', 'Bošany/Partizánske':'bg-preparing', 'U fotografa':'bg-sent', 'Vrátené':'bg-returned', 'Na webe':'bg-published' };
+  const statusOrder = ['preparing','partizanske','sent','returned','published','stock'];
+  const bgClass = { 'Na sklade':'bg-stock', 'Bošany':'bg-preparing', 'Partizánske':'bg-partizanske', 'U fotografa':'bg-sent', 'Vrátené':'bg-returned', 'Na webe':'bg-published' };
 
   statusOrder.forEach(sk => {
     const label = STATUS_LABELS[sk] || sk;
