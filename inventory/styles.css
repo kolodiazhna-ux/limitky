@@ -554,6 +554,28 @@ tfoot .sum-note { font-weight: 600; color: var(--muted); font-size: 12px; }
 /* ── Deadline ───────────────────────────────────────── */
 td.deadline-cell { font-size: 12px; white-space: nowrap; }
 
+/* ── Počítadlá stavu fotenia (rovnaké ako vo Fotení) ── */
+.foto-stats {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding: 10px 28px 0;
+}
+.foto-stat {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  min-width: 92px; padding: 7px 12px; border-radius: 12px;
+  border: 2px solid transparent; background: var(--white);
+  box-shadow: var(--shadow); cursor: pointer; font-family: var(--font);
+}
+.foto-stat .fs-num { font-size: 20px; font-weight: 700; line-height: 1.1; }
+.foto-stat .fs-label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
+.foto-stat.active { border-color: currentColor; }
+.fs-all .fs-num { color: var(--ink); }
+.fs-preparing .fs-num { color: #00BCD4; }
+.fs-partizanske .fs-num { color: var(--primary); }
+.fs-sent .fs-num { color: var(--warn); }
+.fs-returned .fs-num { color: #2979FF; }
+.fs-published .fs-num { color: var(--ok); }
+@media (max-width: 600px) { .foto-stats { padding: 10px 12px 0; } .foto-stat { min-width: 78px; flex: 1; } }
+
 /* ── Prepínač zobrazenia: tabuľka / karty ── */
 .view-mode { display: flex; background: var(--smoke); border-radius: 10px; padding: 3px; flex-shrink: 0; }
 .vm-btn {

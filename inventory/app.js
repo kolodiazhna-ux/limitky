@@ -462,6 +462,9 @@ const PAGE_CATEGORY = document.body.dataset.category || "limitka";
 let currentBucket = "";
 let selected = new Set();
 
+// Filter podľa stavu fotenia (klik na počítadlo; "all" = bez filtra)
+let fotoFilter = "all";
+
 // Zobrazenie zoznamu: "table" (riadky) alebo "grid" (karty s fotkou)
 let viewMode = localStorage.getItem("dr_view_mode") || "table";
 function setViewMode(m) {
@@ -613,6 +616,8 @@ function getView() {
     // Každý priečinok (bucket) zobrazuje len svoje položky:
     //   "" = Pripravuje sa (aktívne),  "soldout" = Hotové,  "mail" = Na mail
     if ((r.bucket || "") !== currentBucket) return false;
+    // Filter podľa stavu fotenia (počítadlá nad zoznamom)
+    if (fotoFilter !== "all" && (r.fotoStage || "") !== fotoFilter) return false;
     if (q) {
       const hay = `${r.code} ${r.name} ${r.desc} ${r.note} ${r.fotoNote} ${r.place}`.toLowerCase();
       if (!hay.includes(q)) return false;
@@ -656,7 +661,35 @@ function render() {
     bindRowEvents();
   }
   renderTabs();
+  renderFotoStats();
   renderCharts();
+}
+
+/* ---------- Počítadlá stavu fotenia (rovnaké ako vo Fotení) ---------- */
+function renderFotoStats() {
+  const el = $("#fotoStats");
+  if (!el) return;
+  const rows = data.filter((r) => productCategory(r) === PAGE_CATEGORY && (r.bucket || "") === currentBucket);
+  const cnt = (s) => rows.filter((r) => (r.fotoStage || "") === s).length;
+  const blocks = [
+    { v: "all",         label: "Všetky",       icon: "",   n: rows.length,       cls: "fs-all" },
+    { v: "preparing",   label: "Bošany",       icon: "🏘️", n: cnt("preparing"),   cls: "fs-preparing" },
+    { v: "partizanske", label: "Partizánske",  icon: "🏙️", n: cnt("partizanske"), cls: "fs-partizanske" },
+    { v: "sent",        label: "U fotografa",  icon: "📤", n: cnt("sent"),        cls: "fs-sent" },
+    { v: "returned",    label: "Vrátené",      icon: "📥", n: cnt("returned"),    cls: "fs-returned" },
+    { v: "published",   label: "Na webe",      icon: "✅", n: cnt("published"),   cls: "fs-published" },
+  ];
+  el.innerHTML = blocks.map((b) => `
+    <button class="foto-stat ${b.cls}${fotoFilter === b.v ? " active" : ""}" data-fstat="${b.v}">
+      <span class="fs-num">${b.n}</span>
+      <span class="fs-label">${b.icon ? b.icon + " " : ""}${b.label}</span>
+    </button>`).join("");
+  el.querySelectorAll("[data-fstat]").forEach((b) => {
+    b.addEventListener("click", () => {
+      fotoFilter = fotoFilter === b.dataset.fstat ? "all" : b.dataset.fstat;
+      render();
+    });
+  });
 }
 
 /* ---------- Zobrazenie: karty (ikony) ---------- */
