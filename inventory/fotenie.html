@@ -493,8 +493,8 @@
       <label>Status</label>
       <select id="fieldStatus">
         <option value="stock">📦 Na sklade</option>
-        <option value="preparing">🔄 Bošany</option>
-        <option value="partizanske">🏭 Partizánske</option>
+        <option value="preparing">🏘️ Bošany</option>
+        <option value="partizanske">🏙️ Partizánske</option>
         <option value="sent">📤 U fotografa</option>
         <option value="returned">📥 Vrátené z fotenia</option>
         <option value="published">✅ Foto na webe</option>
@@ -934,8 +934,8 @@ function renderGrid(list) {
         ${p.note ? `<div class="card-note">💬 ${esc(p.note)}</div>` : ''}
         ${links ? `<div class="card-links">${links}</div>` : ''}
         <div class="status-btns ${p.fotoStage && p.fotoStage!=='stock' ? 'has-status' : ''}">
-          <button class="status-btn btn-preparing ${p.fotoStage==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🔄 Bošany</button>
-          <button class="status-btn btn-partizanske ${p.fotoStage==='partizanske'?'active':''}" onclick="setStatus('${p._key}','partizanske')">🏭 Partizánske</button>
+          <button class="status-btn btn-preparing ${p.fotoStage==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🏘️ Bošany</button>
+          <button class="status-btn btn-partizanske ${p.fotoStage==='partizanske'?'active':''}" onclick="setStatus('${p._key}','partizanske')">🏙️ Partizánske</button>
           <button class="status-btn btn-sent ${p.fotoStage==='sent'?'active':''}" onclick="setStatus('${p._key}','sent')">📤 Fotograf</button>
           <button class="status-btn btn-returned ${p.fotoStage==='returned'?'active':''}" onclick="setStatus('${p._key}','returned')">📥 Vrátené</button>
           <button class="status-btn btn-published ${p.fotoStage==='published'?'active':''}" onclick="setStatus('${p._key}','published')">✅ Na webe</button>
@@ -994,8 +994,8 @@ function renderTable(list) {
       <td style="white-space:nowrap">${linkParts||'—'}</td>
       <td>
         <div class="table-status-btns ${p.fotoStage && p.fotoStage!=='stock' ? 'has-status' : ''}">
-          <button class="status-btn btn-preparing ${p.fotoStage==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🔄</button>
-          <button class="status-btn btn-partizanske ${p.fotoStage==='partizanske'?'active':''}" onclick="setStatus('${p._key}','partizanske')">🏭</button>
+          <button class="status-btn btn-preparing ${p.fotoStage==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🏘️</button>
+          <button class="status-btn btn-partizanske ${p.fotoStage==='partizanske'?'active':''}" onclick="setStatus('${p._key}','partizanske')">🏙️</button>
           <button class="status-btn btn-sent ${p.fotoStage==='sent'?'active':''}" onclick="setStatus('${p._key}','sent')">📤</button>
           <button class="status-btn btn-returned ${p.fotoStage==='returned'?'active':''}" onclick="setStatus('${p._key}','returned')">📥</button>
           <button class="status-btn btn-published ${p.fotoStage==='published'?'active':''}" onclick="setStatus('${p._key}','published')">✅</button>
