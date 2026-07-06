@@ -222,6 +222,8 @@
   .upload-hint .big { font-size: 26px; display: block; margin-bottom: 4px; }
   .photo-delete-inline { margin-top: 8px; width: 100%; border: 1.5px solid var(--red); color: var(--red); background: var(--white); border-radius: 10px; padding: 9px; font-size: 13px; font-weight: 600; cursor: pointer; }
   .photo-delete-inline:active { background: #fbe4e1; }
+  .card-hotove { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; font-weight: 600; color: var(--gray3); cursor: pointer; }
+  .card-hotove input, .hotove-chk { width: 17px; height: 17px; cursor: pointer; accent-color: var(--green); }
   .card-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
   .card-link { display: inline-block; background: #efe7f8; color: var(--purple-dark); border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 600; text-decoration: none; }
   .card-link:active { background: var(--purple-light); }
@@ -400,7 +402,7 @@
 <div class="table-wrap hidden" id="tableView">
   <table class="products-table">
     <thead><tr>
-      <th>Kód</th><th>Foto</th><th>Názov</th><th>Ks</th><th>Cena</th><th>Miesto</th><th>Dátum</th><th>Popis</th><th>Poznámka</th><th>Stav</th><th>Odkazy</th><th>Status</th><th></th>
+      <th>Kód</th><th>Foto</th><th>Názov</th><th>Ks</th><th>Cena</th><th>Miesto</th><th>Dátum</th><th>Popis</th><th>Poznámka</th><th>Mesto</th><th>Hotové</th><th>Odkazy</th><th>Status</th><th></th>
     </tr></thead>
     <tbody id="tableBody"></tbody>
   </table>
@@ -501,7 +503,7 @@
       </select>
     </div>
     <div class="form-group">
-      <label>Stav (výroba / poloha)</label>
+      <label>Mesto (výroba / poloha)</label>
       <select id="fieldStav">
         <option value="">—</option>
         <option value="Výroba">Výroba</option>
@@ -928,7 +930,7 @@ function renderGrid(list) {
           ${p.price ? `<div class="card-meta-item">Cena: <span>${p.price}€</span></div>` : ''}
           ${p.place ? `<div class="card-meta-item">Miesto: <span>${esc(p.place)}</span></div>` : ''}
           ${p.date  ? `<div class="card-meta-item">Dátum: <span>${fmtDate(p.date)}</span></div>` : ''}
-          ${p.status ? `<div class="card-meta-item">Stav: <span>${esc(p.status)}</span></div>` : ''}
+          ${p.status ? `<div class="card-meta-item">Mesto: <span>${esc(p.status)}</span></div>` : ''}
         </div>
         ${noteHTML}
         ${p.note ? `<div class="card-note">💬 ${esc(p.note)}</div>` : ''}
@@ -940,6 +942,7 @@ function renderGrid(list) {
           <button class="status-btn btn-returned ${p.fotoStage==='returned'?'active':''}" onclick="setStatus('${p._key}','returned')">📥 Vrátené</button>
           <button class="status-btn btn-published ${p.fotoStage==='published'?'active':''}" onclick="setStatus('${p._key}','published')">✅ Na webe</button>
         </div>
+        <label class="card-hotove"><input type="checkbox" onchange="toggleHotove('${p._key}', this.checked)" ${p.bucket==='soldout'?'checked':''}> Hotové</label>
         <div class="card-actions">
           ${currentSection === 'main' ? `
             <button class="action-btn" onclick="openEditModal('${p._key}')">✏️ Editovať</button>
@@ -962,7 +965,7 @@ function renderTable(list) {
   const tbody = document.getElementById('tableBody');
   tbody.innerHTML = '';
   if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;padding:40px;color:var(--gray3)">Žiadne produkty</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="14" style="text-align:center;padding:40px;color:var(--gray3)">Žiadne produkty</td></tr>`;
     return;
   }
   list.forEach(p => {
@@ -991,6 +994,7 @@ function renderTable(list) {
       <td>${esc(p.desc||'—')}</td>
       <td>${noteParts||'—'}</td>
       <td>${esc(p.status||'—')}</td>
+      <td style="text-align:center"><input type="checkbox" class="hotove-chk" onchange="toggleHotove('${p._key}', this.checked)" ${p.bucket==='soldout'?'checked':''} title="Hotové"></td>
       <td style="white-space:nowrap">${linkParts||'—'}</td>
       <td>
         <div class="table-status-btns ${p.fotoStage && p.fotoStage!=='stock' ? 'has-status' : ''}">
@@ -1264,6 +1268,15 @@ function zoomPhoto(key) {
   zoomKey = key;
   document.getElementById('photoZoomImg').src = p.photo;
   document.getElementById('photoModal').classList.add('open');
+}
+
+// Hotové: galočka presunie produkt do priečinka Hotové v Sklad appke (a späť)
+async function toggleHotove(key, checked) {
+  const p = products[key];
+  if (!p) return;
+  p.bucket = checked ? 'soldout' : '';
+  renderProducts();
+  await pushProducts();
 }
 
 // Natrvalo vymaže fotku produktu zo spoločnej databázy

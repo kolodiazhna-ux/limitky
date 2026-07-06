@@ -714,6 +714,9 @@ function cardHtml(r) {
       ${r.desc ? `<div class="p-card-desc">${esc(r.desc)}</div>` : ""}
       <div class="p-card-actions">
         <button class="btn btn-ghost" data-cardedit="${r.id}">✏️ Upraviť</button>
+        <label class="p-card-hotove" title="Hotové — presunúť do priečinka Hotové">
+          <input type="checkbox" class="hotove-check" data-hotoveid="${r.id}" ${r.bucket === "soldout" ? "checked" : ""} /> Hotové
+        </label>
         <button class="icon-btn" data-menu="${r.id}" title="Akcie">&#8943;</button>
       </div>
     </div>
@@ -734,6 +737,15 @@ function bindCardEvents() {
   });
   document.querySelectorAll("#gridView [data-menu]").forEach((b) => {
     b.addEventListener("click", (e) => { e.stopPropagation(); openRowMenu(+b.dataset.menu, b); });
+  });
+  document.querySelectorAll("#gridView .hotove-check").forEach((c) => {
+    c.addEventListener("change", () => {
+      const row = data.find((r) => r.id === +c.dataset.hotoveid);
+      row.bucket = c.checked ? "soldout" : "";
+      save();
+      render();
+      toast(c.checked ? "Presunuté do Hotové" : "Vrátené do Pripravuje sa");
+    });
   });
 }
 
@@ -897,6 +909,7 @@ function rowHtml(r) {
     <td class="cell-edit" data-field="place" contenteditable="true">${esc(r.place)}</td>
     <td>${kovanieCell(r.id, r.kovanie)}</td>
     <td>${selectHtml("status", r.status, STATUSES, statusClass)}</td>
+    <td class="check-td"><input type="checkbox" class="hotove-check" data-hotoveid="${r.id}" ${r.bucket === "soldout" ? "checked" : ""} title="Hotové — presunúť do priečinka Hotové" /></td>
     <td class="transfer-cell">
       <div class="cell-edit tr-line" data-field="transferUp" contenteditable="true" data-ph="na fotenie" title="Presun na fotenie">${esc(r.transferUp)}</div>
       <div class="cell-edit tr-line" data-field="transferDown" contenteditable="true" data-ph="na sklad" title="Presun na sklad z fotenia">${esc(r.transferDown)}</div>
@@ -961,6 +974,16 @@ function bindRowEvents() {
       row.photoStatus = c.checked ? "Vyfotené" : "";
       save();
       toast("Uložené");
+    });
+  });
+  // Hotové: galočka presunie produkt do priečinka Hotové (a späť)
+  document.querySelectorAll(".hotove-check").forEach((c) => {
+    c.addEventListener("change", () => {
+      const row = data.find((r) => r.id === +c.dataset.hotoveid);
+      row.bucket = c.checked ? "soldout" : "";
+      save();
+      render();
+      toast(c.checked ? "Presunuté do Hotové" : "Vrátené do Pripravuje sa");
     });
   });
   // Kovanie: klik na farebný bod = vybrať, opätovný klik = zrušiť
@@ -1387,6 +1410,7 @@ async function saveModal() {
 function exportCSV() {
   const cols = ["category", "collection", "code", "name", "qty", "place", "kovanie", "status", "transferUp", "transferDown", "photoStatus", "photoLink", "fotoNote", "webSk", "webCz", "date", "deadline", "desc", "price", "note", "bucket"];
   const head = ["Kategória", "Kolekcia", "Kód", "Názov produktu", "Počet ks", "Miesto výroby", "Kovanie", "Stav", "Presun na fotenie", "Presun na sklad", "Stav fotenia", "Odkaz na fotky", "Poznámka pre fotenie", "Web SK", "Web CZ", "Dátum uverejnenia", "Deadline", "Popis", "Cena", "Poznámka", "Kôš"];
+  // Pozn.: stĺpec "Stav" v tabuľke je premenovaný na "Mesto", v CSV ostáva pole `status`.
   const lines = [head.join(",")];
   data.forEach((r) => {
     lines.push(cols.map((c) => `"${String(r[c] ?? "").replace(/"/g, '""')}"`).join(","));

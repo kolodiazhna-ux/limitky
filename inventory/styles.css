@@ -607,6 +607,8 @@ td.deadline-cell { font-size: 12px; white-space: nowrap; }
 .p-card-desc { font-size: 12px; color: var(--ink); background: var(--smoke-light); border-radius: 8px; padding: 6px 8px; }
 .p-card-actions { margin-top: auto; display: flex; justify-content: space-between; align-items: center; gap: 6px; padding-top: 4px; }
 .p-card-actions .btn { padding: 6px 12px; font-size: 12px; }
+.p-card-hotove { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.p-card-hotove input { width: 15px; height: 15px; cursor: pointer; accent-color: var(--ok); }
 @media (max-width: 600px) { .products-grid { padding: 12px 12px 40px; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); } }
 
 /* Dátum — klik otvorí kalendár priamo v bunke */
