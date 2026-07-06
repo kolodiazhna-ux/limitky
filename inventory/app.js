@@ -376,7 +376,8 @@ function normalize(rows) {
     const o = {
       photoStatus: "", photoLink: "", transferNo: "",
       transferUp: "", transferDown: "", status: "", rowColor: "", bucket: "",
-      webSk: "", webCz: "", kovanie: "", deadline: "", category: "", collection: "", ...r,
+      webSk: "", webCz: "", kovanie: "", deadline: "", category: "", collection: "",
+      fotoNote: "", ...r,
     };
     // Migrácia: starý jeden "transferNo" -> horný presun (na fotenie)
     if (!o.transferUp && o.transferNo) o.transferUp = o.transferNo;
@@ -568,7 +569,7 @@ function getView() {
     //   "" = Pripravuje sa (aktívne),  "soldout" = Hotové,  "mail" = Na mail
     if ((r.bucket || "") !== currentBucket) return false;
     if (q) {
-      const hay = `${r.code} ${r.name} ${r.desc} ${r.note} ${r.place}`.toLowerCase();
+      const hay = `${r.code} ${r.name} ${r.desc} ${r.note} ${r.fotoNote} ${r.place}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -749,6 +750,7 @@ function rowHtml(r) {
     <td>${thumb}</td>
     <td class="check-td"><input type="checkbox" class="foto-check" data-fotoid="${r.id}" ${r.photoStatus === "Vyfotené" ? "checked" : ""} title="Vyfotené" /></td>
     <td>${linkCell(r.id, "photoLink", r.photoLink)}</td>
+    <td class="cell-edit note-cell foto-note-cell" data-field="fotoNote" contenteditable="true">${esc(r.fotoNote)}</td>
     <td class="qty-cell">
       <button class="qty-step" data-step="-1" data-id="${r.id}" title="−1">−</button>
       <span class="qty-badge ${qtyClass(r.qty)}" data-qtyedit="${r.id}" contenteditable="true" inputmode="numeric">${r.qty}</span>
@@ -1154,6 +1156,7 @@ function openModal(id) {
   $("#f-desc").value = row ? row.desc : "";
   $("#f-price").value = row ? row.price : "";
   $("#f-note").value = row ? row.note : "";
+  if ($("#f-fotoNote")) $("#f-fotoNote").value = row ? (row.fotoNote || "") : "";
   $("#f-status").value = row ? row.status : "";
   $("#f-kovanie").value = row ? row.kovanie : "";
   $("#f-transferUp").value = row ? row.transferUp : "";
@@ -1183,6 +1186,7 @@ async function saveModal() {
     desc: $("#f-desc").value.trim(),
     price: +$("#f-price").value || 0,
     note: $("#f-note").value.trim(),
+    fotoNote: $("#f-fotoNote")?.value.trim() || "",
     status: $("#f-status").value,
     kovanie: $("#f-kovanie").value,
     transferUp: $("#f-transferUp").value.trim(),
@@ -1211,8 +1215,8 @@ async function saveModal() {
 
 /* ---------- Export ---------- */
 function exportCSV() {
-  const cols = ["category", "collection", "code", "name", "qty", "place", "kovanie", "status", "transferUp", "transferDown", "photoStatus", "photoLink", "webSk", "webCz", "date", "deadline", "desc", "price", "note", "bucket"];
-  const head = ["Kategória", "Kolekcia", "Kód", "Názov produktu", "Počet ks", "Miesto výroby", "Kovanie", "Stav", "Presun na fotenie", "Presun na sklad", "Stav fotenia", "Odkaz na fotky", "Web SK", "Web CZ", "Dátum uverejnenia", "Deadline", "Popis", "Cena", "Poznámka", "Kôš"];
+  const cols = ["category", "collection", "code", "name", "qty", "place", "kovanie", "status", "transferUp", "transferDown", "photoStatus", "photoLink", "fotoNote", "webSk", "webCz", "date", "deadline", "desc", "price", "note", "bucket"];
+  const head = ["Kategória", "Kolekcia", "Kód", "Názov produktu", "Počet ks", "Miesto výroby", "Kovanie", "Stav", "Presun na fotenie", "Presun na sklad", "Stav fotenia", "Odkaz na fotky", "Poznámka pre fotenie", "Web SK", "Web CZ", "Dátum uverejnenia", "Deadline", "Popis", "Cena", "Poznámka", "Kôš"];
   const lines = [head.join(",")];
   data.forEach((r) => {
     lines.push(cols.map((c) => `"${String(r[c] ?? "").replace(/"/g, '""')}"`).join(","));
