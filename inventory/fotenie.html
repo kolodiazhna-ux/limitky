@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Limitky — Fotenie</title>
+
+<!-- ╔══════════════════════════════════════════════════════════════╗ -->
+<!-- ║  CLOUDFLARE WORKER CONFIG                                    ║ -->
+<!-- ║  1. wrangler deploy  →  skopíruj URL workera                 ║ -->
+<!-- ║  2. Nastav WORKER_URL nižšie                                  ║ -->
+<!-- ╚══════════════════════════════════════════════════════════════╝ -->
+<script>
+  window.WORKER_URL    = 'https://limitky-api.kolodiazhna.workers.dev';
+  window.WORKER_API_KEY = '';   // voliteľný — nastav ak použiješ API_SECRET
+</script>
+
+<style>
+  :root {
+    --green: #00C851;
+    --orange: #FF8800;
+    --blue: #2979FF;
+    --red: #FF3D3D;
+    --purple: #7B2D8B;
+    --teal: #00BCD4;
+    --gray: #F2F2F7;
+    --gray2: #E5E5EA;
+    --gray3: #8E8E93;
+    --text: #1C1C1E;
+    --white: #FFFFFF;
+    --radius: 14px;
+    --shadow: 0 2px 12px rgba(0,0,0,0.10);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.15);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F2F2F7; color: var(--text); min-height: 100vh; }
+
+  /* LOADER */
+  .loader-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.92); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; transition: opacity 0.3s; }
+  .loader-overlay.hidden { opacity: 0; pointer-events: none; }
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--gray2); border-top-color: var(--purple); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loader-text { font-size: 14px; color: var(--gray3); font-weight: 500; }
+
+  /* SETUP BANNER */
+  .setup-banner { background: #FFF3CD; border-bottom: 2px solid #FFC107; padding: 12px 16px; font-size: 13px; line-height: 1.5; display: none; }
+  .setup-banner strong { display: block; font-size: 14px; margin-bottom: 4px; }
+  .setup-banner.visible { display: block; }
+  .setup-banner code { background: rgba(0,0,0,0.08); border-radius: 4px; padding: 1px 5px; font-size: 12px; }
+
+  /* SYNC STATUS */
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gray3); display: inline-block; margin-right: 4px; transition: background 0.3s; }
+  .sync-dot.online { background: var(--green); }
+  .sync-dot.syncing { background: var(--orange); animation: pulse 1s ease infinite; }
+  .sync-dot.offline { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .sync-label { font-size: 11px; color: var(--gray3); font-weight: 500; }
+
+  /* HEADER */
+  .header { background: var(--white); padding: 14px 16px 10px; border-bottom: 1px solid var(--gray2); position: sticky; top: 0; z-index: 100; }
+  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .header-left { display: flex; flex-direction: column; gap: 2px; }
+  .header h1 { font-size: 19px; font-weight: 700; }
+  .sync-row { display: flex; align-items: center; }
+  .view-toggle { display: flex; background: var(--gray); border-radius: 10px; padding: 3px; }
+  .view-btn { border: none; background: transparent; border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 14px; transition: all 0.15s; }
+  .view-btn.active { background: var(--white); box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+
+  /* STATS */
+  .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 10px 12px; background: var(--white); border-bottom: 1px solid var(--gray2); }
+  .stat { text-align: center; padding: 8px 4px; border-radius: 10px; cursor: pointer; transition: opacity 0.15s; border: 2px solid transparent; }
+  .stat:active { opacity: 0.7; }
+  .stat.active-filter { border-color: currentColor; }
+  .stat-num { font-size: 22px; font-weight: 700; line-height: 1; }
+  .stat-label { font-size: 10px; color: var(--gray3); margin-top: 2px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
+  .stat-all .stat-num { color: var(--text); }
+  .stat-preparing .stat-num { color: var(--teal); }
+  .stat-sent .stat-num { color: var(--orange); }
+  .stat-returned .stat-num { color: var(--blue); }
+  .stat-published .stat-num { color: var(--green); }
+
+  /* SEARCH */
+  .search-bar { padding: 10px 12px; background: var(--white); border-bottom: 1px solid var(--gray2); }
+  .search-input { width: 100%; background: var(--gray); border: none; border-radius: 10px; padding: 9px 14px; font-size: 15px; outline: none; }
+
+  /* RECENT */
+  .recent-bar { padding: 8px 12px; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; background: var(--white); border-bottom: 1px solid var(--gray2); }
+  .recent-bar::-webkit-scrollbar { display: none; }
+  .recent-label { font-size: 11px; color: var(--gray3); white-space: nowrap; align-self: center; font-weight: 500; flex-shrink: 0; }
+  .recent-chip { background: var(--gray); border: none; border-radius: 20px; padding: 5px 11px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+
+  /* LEGEND */
+  .status-legend { display: flex; gap: 12px; padding: 7px 12px; background: var(--white); border-bottom: 1px solid var(--gray2); flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--gray3); font-weight: 500; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* GRID */
+  .products-grid { padding: 12px 12px 100px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  @media (max-width: 480px) { .products-grid { grid-template-columns: 1fr; padding: 10px 10px 100px; } }
+
+  /* CARD */
+  .card { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; transition: transform 0.15s; border-left: 5px solid var(--gray2); }
+  .card:active { transform: scale(0.98); }
+  .card.status-preparing { border-left-color: var(--teal); background: #E0F7FA; }
+  .card.status-sent { border-left-color: var(--orange); }
+  .card.status-returned { border-left-color: var(--blue); }
+  .card.status-published { border-left-color: var(--green); background: #F6FFF8; }
+  .card-photo { width: 100%; height: 160px; object-fit: cover; background: var(--gray); display: block; cursor: zoom-in; }
+  .card-photo-placeholder { width: 100%; height: 110px; background: var(--gray); display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--gray3); font-size: 13px; gap: 6px; cursor: pointer; }
+  .card-photo-placeholder .cam-icon { font-size: 26px; }
+  .card-body { padding: 12px; }
+  .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; }
+  .card-code { font-size: 11px; font-weight: 700; color: var(--gray3); text-transform: uppercase; letter-spacing: 0.5px; }
+  .card-status-badge { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; }
+  .badge-stock { background: var(--gray); color: var(--gray3); }
+  .badge-preparing { background: #E0F7FA; color: var(--teal); }
+  .badge-sent { background: #FFF3E0; color: var(--orange); }
+  .badge-returned { background: #E3F2FD; color: var(--blue); }
+  .badge-published { background: #E8F5E9; color: #2E7D32; }
+  .card-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; line-height: 1.3; }
+  .card-desc { font-size: 13px; color: var(--gray3); margin-bottom: 8px; }
+  .card-meta { display: flex; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+  .card-meta-item { font-size: 12px; color: var(--gray3); }
+  .card-meta-item span { font-weight: 600; color: var(--text); }
+  .card-note { font-size: 12px; color: var(--orange); background: #FFF8F0; border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; }
+  .status-btns { display: flex; gap: 5px; }
+  .status-btn { flex: 1; border: none; border-radius: 8px; padding: 8px 4px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.15s; text-align: center; }
+  .status-btn:active { transform: scale(0.96); }
+  .has-status .status-btn:not(.active) { background: #F0F0F0 !important; color: #BBB !important; }
+  .has-status .status-btn:not(.active):hover { background: #E0E0E0 !important; color: #888 !important; }
+  .btn-preparing { background: #E0F7FA; color: var(--teal); }
+  .btn-preparing.active, .btn-preparing:hover { background: var(--teal); color: white; }
+  .btn-sent { background: #FFF3E0; color: var(--orange); }
+  .btn-sent.active, .btn-sent:hover { background: var(--orange); color: white; }
+  .btn-returned { background: #E3F2FD; color: var(--blue); }
+  .btn-returned.active, .btn-returned:hover { background: var(--blue); color: white; }
+  .btn-published { background: #E8F5E9; color: #2E7D32; }
+  .btn-published.active, .btn-published:hover { background: var(--green); color: white; }
+  .card-actions { display: flex; gap: 6px; margin-top: 8px; justify-content: flex-end; }
+  .action-btn { background: var(--gray); border: none; border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; font-weight: 500; }
+  .action-btn.delete { color: var(--red); }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; padding: 12px; padding-bottom: 100px; }
+  .products-table { width: 100%; border-collapse: collapse; background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; min-width: 700px; }
+  .products-table th { background: var(--purple); color: white; padding: 10px 12px; font-size: 12px; font-weight: 600; text-align: left; text-transform: uppercase; }
+  .products-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--gray2); vertical-align: middle; }
+  .products-table tr:last-child td { border-bottom: none; }
+  .products-table tr.status-preparing td { background: #E0F7FA; }
+  .products-table tr.status-sent td { background: #FFF8F0; }
+  .products-table tr.status-returned td { background: #EEF4FF; }
+  .products-table tr.status-published td { background: #F0FFF4; }
+  .table-thumb { width: 50px; height: 40px; object-fit: cover; border-radius: 6px; background: var(--gray); display: block; cursor: zoom-in; }
+  .table-status-btns { display: flex; gap: 4px; }
+  .table-status-btns .status-btn { padding: 5px 6px; font-size: 10px; min-width: 60px; }
+
+  /* SECTION NAV */
+  .section-nav { display: flex; gap: 8px; padding: 8px 12px; overflow-x: auto; }
+  .section-btn { background: var(--gray); border: none; border-radius: 20px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.15s; color: #555; }
+  .section-btn.active { background: var(--purple); color: white; }
+  .section-count { font-size: 11px; opacity: 0.8; }
+  .archive-actions, .trash-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .btn-restore { background: #E8F5E9; color: #2E7D32; border: none; border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .btn-restore:hover { background: #C8E6C9; }
+  .btn-trash { background: #FFF3E0; color: #E65100; border: none; border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .btn-trash:hover { background: #FFE0B2; }
+  .btn-permadelete { background: #FFEBEE; color: #C62828; border: none; border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .btn-permadelete:hover { background: #FFCDD2; }
+  .btn-archive { background: #E3F2FD; color: #1565C0; border: none; border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .btn-archive:hover { background: #BBDEFB; }
+
+  /* FAB */
+  .fab { position: fixed; bottom: 24px; right: 16px; background: var(--purple); color: white; border: none; border-radius: 56px; padding: 14px 20px; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: var(--shadow-lg); z-index: 200; display: flex; align-items: center; gap: 8px; transition: transform 0.15s; }
+  .fab:active { transform: scale(0.95); }
+
+  /* MODAL */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 300; display: none; align-items: flex-end; justify-content: center; backdrop-filter: blur(4px); }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--white); border-radius: 20px 20px 0 0; padding: 20px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; animation: slideUp 0.25s ease; }
+  @media (min-width: 600px) { .modal-overlay { align-items: center; } .modal { border-radius: 20px; max-height: 85vh; } }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .modal-handle { width: 36px; height: 4px; background: var(--gray2); border-radius: 2px; margin: 0 auto 14px; }
+  .modal h2 { font-size: 18px; font-weight: 700; margin-bottom: 14px; }
+  .form-group { margin-bottom: 13px; }
+  .form-group label { display: block; font-size: 11px; font-weight: 600; color: var(--gray3); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 5px; }
+  .form-group input, .form-group textarea, .form-group select { width: 100%; background: var(--gray); border: none; border-radius: 10px; padding: 11px 14px; font-size: 15px; outline: none; font-family: inherit; resize: vertical; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .photo-upload-area { border: 2px dashed var(--gray2); border-radius: 12px; padding: 18px; text-align: center; cursor: pointer; position: relative; overflow: hidden; }
+  .photo-upload-area:hover { border-color: var(--purple); }
+  .photo-upload-area input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .photo-preview { width: 100%; max-height: 180px; object-fit: cover; border-radius: 10px; margin-top: 8px; display: none; }
+  .photo-preview.visible { display: block; }
+  .upload-hint { font-size: 13px; color: var(--gray3); }
+  .upload-hint .big { font-size: 26px; display: block; margin-bottom: 4px; }
+  .quick-codes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .quick-code-btn { background: var(--gray); border: none; border-radius: 20px; padding: 5px 11px; font-size: 12px; font-weight: 600; cursor: pointer; }
+
+  /* NAME BUILDER */
+  .name-builder { margin-top: 8px; display: flex; flex-direction: column; gap: 5px; }
+  .name-builder-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+  .name-builder-label { font-size: 10px; color: var(--gray3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; min-width: 48px; }
+  .nb-chip { border: none; border-radius: 20px; padding: 5px 11px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.12s; white-space: nowrap; }
+  .nb-chip:active { transform: scale(0.94); }
+  .nb-chip-model  { background: #EDE7F6; color: #5E35B1; }
+  .nb-chip-type   { background: #E8EAF6; color: #3949AB; }
+  .nb-chip-color  { background: #FCE4EC; color: #C2185B; }
+  .nb-chip-color.zlatá  { background: #FFF8E1; color: #F57F17; }
+  .nb-chip-color.strieborná { background: #ECEFF1; color: #546E7A; }
+  .nb-chip-color.modrá  { background: #E3F2FD; color: #1565C0; }
+  .nb-chip-color.nude   { background: #FBE9E7; color: #BF360C; }
+  .nb-chip-color.čierna { background: #F5F5F5; color: #212121; }
+  .nb-chip-color.zelená { background: #E8F5E9; color: #2E7D32; }
+  .nb-clear { background: none; border: none; color: var(--red); font-size: 12px; font-weight: 600; cursor: pointer; padding: 4px 6px; margin-left: 4px; }
+  .name-preview { font-size: 12px; color: var(--gray3); background: var(--gray); border-radius: 8px; padding: 6px 10px; margin-top: 4px; min-height: 28px; word-break: break-word; }
+  .btn-primary { width: 100%; background: var(--purple); color: white; border: none; border-radius: 12px; padding: 14px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 6px; transition: opacity 0.15s; }
+  .btn-primary:active { opacity: 0.85; }
+  .btn-secondary { width: 100%; background: var(--gray); color: var(--text); border: none; border-radius: 12px; padding: 12px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+
+  /* PHOTO ZOOM MODAL */
+  .photo-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 500; display: none; align-items: center; justify-content: center; cursor: zoom-out; }
+  .photo-modal.open { display: flex; }
+  .photo-modal img { max-width: 95vw; max-height: 90vh; object-fit: contain; border-radius: 8px; }
+
+  /* EMPTY */
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--gray3); grid-column: 1/-1; }
+  .empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; }
+
+  .hidden { display: none !important; }
+
+  /* AUTH OVERLAY */
+  .auth-overlay { position: fixed; inset: 0; background: var(--gray); z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .auth-overlay.hidden { display: none; }
+  .auth-card { background: white; border-radius: 20px; padding: 32px 24px; width: 100%; max-width: 380px; box-shadow: var(--shadow-lg); }
+  .auth-logo { font-size: 36px; text-align: center; margin-bottom: 8px; }
+  .auth-title { font-size: 22px; font-weight: 700; text-align: center; margin-bottom: 4px; }
+  .auth-subtitle { font-size: 14px; color: var(--gray3); text-align: center; margin-bottom: 24px; }
+  .auth-tabs { display: flex; background: var(--gray); border-radius: 10px; padding: 3px; margin-bottom: 20px; }
+  .auth-tab { flex: 1; padding: 8px; border: none; background: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; color: var(--gray3); transition: all 0.15s; }
+  .auth-tab.active { background: white; color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+  .auth-input { width: 100%; border: 1.5px solid var(--gray2); border-radius: 10px; padding: 12px 14px; font-size: 15px; outline: none; margin-bottom: 10px; transition: border 0.15s; }
+  .auth-input:focus { border-color: var(--purple); }
+  .auth-btn { width: 100%; background: var(--purple); color: white; border: none; border-radius: 12px; padding: 14px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 4px; transition: opacity 0.15s; }
+  .auth-btn:active { opacity: 0.85; }
+  .auth-error { color: var(--red); font-size: 13px; text-align: center; margin-top: 10px; min-height: 18px; }
+
+  /* LOGOUT BUTTON */
+  .logout-btn { border: none; background: none; color: var(--gray3); font-size: 13px; cursor: pointer; padding: 4px 8px; border-radius: 8px; }
+  .logout-btn:active { background: var(--gray2); }
+</style>
+</head>
+<body>
+
+<!-- AUTH OVERLAY -->
+<div class="auth-overlay hidden" id="authOverlay">
+  <div class="auth-card">
+    <div class="auth-logo">👜</div>
+    <div class="auth-title">Limitky</div>
+    <div class="auth-subtitle">Správa produktov</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Prihlásiť sa</button>
+      <button class="auth-tab" id="tabRegister" onclick="switchAuthTab('register')">Registrácia</button>
+      <button class="auth-tab" id="tabReset" onclick="switchAuthTab('reset')">Zmeniť heslo</button>
+    </div>
+    <input class="auth-input" id="authEmail" type="email" placeholder="Email" autocomplete="email">
+    <input class="auth-input" id="authPassword" type="password" placeholder="Heslo" autocomplete="current-password">
+    <input class="auth-input hidden" id="authNewPassword" type="password" placeholder="Nové heslo (min. 6 znakov)">
+    <button class="auth-btn" id="authBtn" onclick="submitAuth()">Prihlásiť sa</button>
+    <div class="auth-error" id="authError"></div>
+  </div>
+</div>
+
+<!-- LOADER -->
+<div class="loader-overlay" id="loaderOverlay">
+  <div class="spinner"></div>
+  <div class="loader-text">Načítavam dáta…</div>
+</div>
+
+<!-- SETUP BANNER -->
+<div class="setup-banner" id="setupBanner">
+  <strong>⚙️ Nastav Cloudflare Worker — dáta sa neukladajú!</strong>
+  Otvor súbor <code>products.html</code>, nájdi <code>window.WORKER_URL</code> a vlož URL svojho nasadeného Workera.
+</div>
+
+<div class="header">
+  <div class="header-top">
+    <div class="header-left">
+      <h1>👜 Limitky</h1>
+      <div class="sync-row">
+        <span class="sync-dot" id="syncDot"></span>
+        <span class="sync-label" id="syncLabel">Pripájam…</span>
+      </div>
+    </div>
+    <div class="view-toggle">
+      <button class="view-btn active" id="btnGrid" onclick="setView('grid')">⊞</button>
+      <button class="view-btn" id="btnTable" onclick="setView('table')">≡</button>
+      <button class="view-btn" onclick="exportPDF()" title="Export PDF">📄</button>
+      <button class="logout-btn" id="logoutBtn" onclick="logout()" title="Odhlásiť sa" style="display:none">↩</button>
+    </div>
+  </div>
+</div>
+
+<div class="stats-bar">
+  <div class="stat stat-all active-filter" onclick="filterByStatus('all')" id="stat-all">
+    <div class="stat-num" id="count-all">—</div>
+    <div class="stat-label">Všetky</div>
+  </div>
+  <div class="stat stat-preparing" onclick="filterByStatus('preparing')" id="stat-preparing">
+    <div class="stat-num" id="count-preparing">—</div>
+    <div class="stat-label">Bošany</div>
+  </div>
+  <div class="stat stat-sent" onclick="filterByStatus('sent')" id="stat-sent">
+    <div class="stat-num" id="count-sent">—</div>
+    <div class="stat-label">U fotografa</div>
+  </div>
+  <div class="stat stat-returned" onclick="filterByStatus('returned')" id="stat-returned">
+    <div class="stat-num" id="count-returned">—</div>
+    <div class="stat-label">Vrátené</div>
+  </div>
+  <div class="stat stat-published" onclick="filterByStatus('published')" id="stat-published">
+    <div class="stat-num" id="count-published">—</div>
+    <div class="stat-label">Na webe</div>
+  </div>
+</div>
+
+<div class="section-nav" id="sectionNav">
+  <button class="section-btn active" id="sec-main" onclick="switchSection('main')">📦 Produkty</button>
+  <button class="section-btn" id="sec-archive" onclick="switchSection('archive')">📁 Archív <span id="count-archive" class="section-count">0</span></button>
+  <button class="section-btn" id="sec-trash" onclick="switchSection('trash')">🗑️ Kôš <span id="count-trash" class="section-count">0</span></button>
+</div>
+
+<div class="search-bar">
+  <input class="search-input" type="search" placeholder="🔍  Hľadať kód alebo názov…" id="searchInput" oninput="renderProducts()">
+</div>
+
+<div class="recent-bar" id="recentBar" style="display:none">
+  <span class="recent-label">Posledné:</span>
+</div>
+
+<div class="status-legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#ccc"></div>Sklad</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div>U fotografa</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>Vrátené</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Na webe ✓</div>
+</div>
+
+<div class="products-grid" id="gridView"></div>
+<div class="table-wrap hidden" id="tableView">
+  <table class="products-table">
+    <thead><tr>
+      <th>Kód</th><th>Foto</th><th>Názov</th><th>Ks</th><th>Cena</th><th>Popis</th><th>Status</th><th></th>
+    </tr></thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</div>
+
+<button class="fab" onclick="openAddModal()">+ Nový produkt</button>
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="handleOverlayClick(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2 id="modalTitle">Nový produkt</h2>
+    <div class="form-group">
+      <label>Kód produktu *</label>
+      <input type="text" id="fieldCode" placeholder="napr. MIALIM68" oninput="this.value=this.value.toUpperCase()">
+      <div class="quick-codes" id="quickCodes"></div>
+    </div>
+    <div class="form-group">
+      <label>Názov produktu *</label>
+      <input type="text" id="fieldName" placeholder="napr. Mia Limitka 68 Strieborná" oninput="updateNamePreview()">
+      <div class="name-builder">
+        <div class="name-builder-row">
+          <span class="name-builder-label">Model</span>
+          <button type="button" class="nb-chip nb-chip-model" onclick="appendName('Mia')">Mia</button>
+          <button type="button" class="nb-chip nb-chip-model" onclick="appendName('Lily')">Lily</button>
+          <button type="button" class="nb-chip nb-chip-model" onclick="appendName('Kozmetická taštička')">Koz. taštička</button>
+          <button type="button" class="nb-chip nb-chip-model" onclick="appendName('Kabelka')">Kabelka</button>
+          <button type="button" class="nb-chip nb-chip-model" onclick="appendName('Bella')">Bella</button>
+          <button type="button" class="nb-chip nb-chip-model" onclick="appendName('Kozmetická taška')">Koz. taška</button>
+          <button type="button" class="nb-chip nb-chip-model" onclick="appendName('Martina')">Martina</button>
+        </div>
+        <div class="name-builder-row">
+          <span class="name-builder-label">Farba kože</span>
+          <button type="button" class="nb-chip nb-chip-color strieborná" onclick="appendName('Strieborná')">Strieborná</button>
+          <button type="button" class="nb-chip nb-chip-color zlatá"      onclick="appendName('Zlatá')">Zlatá</button>
+          <button type="button" class="nb-chip nb-chip-color ružová"     onclick="appendName('Ružová')">Ružová</button>
+          <button type="button" class="nb-chip nb-chip-color modrá"      onclick="appendName('Modrá')">Modrá</button>
+          <button type="button" class="nb-chip nb-chip-color nude"       onclick="appendName('Nude')">Nude</button>
+          <button type="button" class="nb-chip nb-chip-color čierna"     onclick="appendName('Čierna')">Čierna</button>
+          <button type="button" class="nb-chip nb-chip-color zelená"     onclick="appendName('Zelená')">Zelená</button>
+        </div>
+        <div class="name-builder-row">
+          <span class="name-builder-label">Farba kovania</span>
+          <button type="button" class="nb-chip nb-chip-color zlatá"      onclick="appendName('Zlaté kovanie')">Zlatá</button>
+          <button type="button" class="nb-chip nb-chip-color strieborná" onclick="appendName('Strieborné kovanie')">Strieborná</button>
+        </div>
+        <div class="name-builder-row" style="justify-content:space-between">
+          <div id="namePreview" class="name-preview" style="flex:1"></div>
+          <button type="button" class="nb-clear" onclick="clearName()">✕ Vymazať</button>
+        </div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Počet ks</label>
+        <input type="number" id="fieldQty" placeholder="0" min="0">
+      </div>
+      <div class="form-group">
+        <label>Cena (€)</label>
+        <input type="number" id="fieldPrice" placeholder="0" min="0">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Miesto výroby</label>
+      <input type="text" id="fieldMiesto" placeholder="napr. Bošany, Bratislava">
+      <button type="button" class="nb-chip nb-chip-model" style="margin-top:6px" onclick="document.getElementById('fieldMiesto').value='Bošany'">Bošany</button>
+    </div>
+    <div class="form-group">
+      <label>Dátum uverejnenia</label>
+      <input type="date" id="fieldDate">
+    </div>
+    <div class="form-group">
+      <label>Fotografia produktu</label>
+      <div class="photo-upload-area">
+        <input type="file" accept="image/*" capture="environment" id="photoInput" onchange="handlePhotoChange(event)">
+        <div class="upload-hint" id="uploadHint"><span class="big">📷</span>Odfotiť / nahrať</div>
+        <img class="photo-preview" id="photoPreview" alt="">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Popis</label>
+      <textarea id="fieldNote" rows="2" placeholder="Popis produktu…"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Poznámka</label>
+      <textarea id="fieldPoznamka" rows="2" placeholder="Interná poznámka…"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="fieldStatus">
+        <option value="stock">📦 Na sklade</option>
+        <option value="preparing">🔄 Bošany</option>
+        <option value="sent">📤 U fotografa</option>
+        <option value="returned">📥 Vrátené z fotenia</option>
+        <option value="published">✅ Foto na webe</option>
+      </select>
+    </div>
+    <button class="btn-primary" onclick="saveProduct()">Uložiť</button>
+    <button class="btn-secondary" onclick="closeModal()">Zrušiť</button>
+  </div>
+</div>
+
+<!-- PHOTO ZOOM -->
+<div class="photo-modal" id="photoModal" onclick="document.getElementById('photoModal').classList.remove('open')">
+  <img id="photoZoomImg" src="" alt="">
+</div>
+
+<script>
+// ─── CLOUDFLARE WORKER INIT ───────────────────────────────────────────────────
+const WORKER_URL    = (window.WORKER_URL    || '').replace(/\/$/, '');
+const WORKER_API_KEY = window.WORKER_API_KEY || '';
+const isConfigured  = !!WORKER_URL && !WORKER_URL.includes('YOUR_SUBDOMAIN');
+
+// ─── AUTH TOKEN ───────────────────────────────────────────────────────────────
+function getToken()         { return localStorage.getItem('limitky_token'); }
+function setToken(t)        { localStorage.setItem('limitky_token', t); }
+function clearToken()       { localStorage.removeItem('limitky_token'); }
+
+let authMode = 'login'; // 'login' | 'register'
+
+function switchAuthTab(mode) {
+  authMode = mode;
+  document.getElementById('tabLogin').classList.toggle('active', mode === 'login');
+  document.getElementById('tabRegister').classList.toggle('active', mode === 'register');
+  document.getElementById('tabReset').classList.toggle('active', mode === 'reset');
+  document.getElementById('authError').textContent = '';
+  const pwEl    = document.getElementById('authPassword');
+  const newPwEl = document.getElementById('authNewPassword');
+  if (mode === 'login') {
+    document.getElementById('authBtn').textContent = 'Prihlásiť sa';
+    pwEl.placeholder = 'Heslo';
+    pwEl.classList.remove('hidden');
+    newPwEl.classList.add('hidden');
+  } else if (mode === 'register') {
+    document.getElementById('authBtn').textContent = 'Zaregistrovať sa';
+    pwEl.placeholder = 'Heslo (min. 6 znakov)';
+    pwEl.classList.remove('hidden');
+    newPwEl.classList.add('hidden');
+  } else {
+    document.getElementById('authBtn').textContent = 'Zmeniť heslo';
+    pwEl.placeholder = 'Staré heslo (ak poznáš) — môžeš nechať prázdne';
+    pwEl.classList.add('hidden');
+    newPwEl.classList.remove('hidden');
+  }
+}
+
+async function submitAuth() {
+  const email    = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const newPw    = document.getElementById('authNewPassword').value;
+  const errEl    = document.getElementById('authError');
+  const btn      = document.getElementById('authBtn');
+  errEl.textContent = '';
+  errEl.style.color = 'var(--red)';
+
+  if (!email) { errEl.textContent = 'Zadaj email'; return; }
+
+  if (authMode === 'reset') {
+    if (!newPw || newPw.length < 6) { errEl.textContent = 'Nové heslo musí mať aspoň 6 znakov'; return; }
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      const res  = await fetch(WORKER_URL + '/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, new_password: newPw }),
+      });
+      const data = await res.json();
+      if (!res.ok) { errEl.textContent = data.error || 'Chyba'; return; }
+      errEl.style.color = 'var(--green)';
+      errEl.textContent = 'Heslo zmenené! Prihlás sa.';
+      document.getElementById('authNewPassword').value = '';
+      switchAuthTab('login');
+    } catch(e) {
+      errEl.textContent = 'Chyba pripojenia: ' + e.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Zmeniť heslo';
+    }
+    return;
+  }
+
+  if (!password) { errEl.textContent = 'Zadaj heslo'; return; }
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const path = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+    const res  = await fetch(WORKER_URL + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Chyba'; return; }
+    setToken(data.token);
+    document.getElementById('authOverlay').classList.add('hidden');
+    document.getElementById('logoutBtn').style.display = '';
+    initApp();
+  } catch(e) {
+    errEl.textContent = 'Chyba pripojenia: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    const labels = { login: 'Prihlásiť sa', register: 'Zaregistrovať sa', reset: 'Zmeniť heslo' };
+    btn.textContent = labels[authMode] || 'OK';
+  }
+}
+
+function logout() {
+  clearToken();
+  document.getElementById('logoutBtn').style.display = 'none';
+  document.getElementById('authOverlay').classList.remove('hidden');
+  document.getElementById('authEmail').value = '';
+  document.getElementById('authPassword').value = '';
+}
+
+// Enter key support for auth form
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !document.getElementById('authOverlay').classList.contains('hidden')) {
+    submitAuth();
+  }
+});
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let products = {};
+let recentCodes = [];
+let currentFilter  = 'all';
+let currentView    = 'grid';
+let currentSection = 'main';
+let editingId      = null;
+let currentPhotoBase64 = null;
+let currentPhotoIsNew  = false;
+
+if (!isConfigured) {
+  document.getElementById('setupBanner').classList.add('visible');
+  setSyncStatus('offline', 'Nie je nakonfigurované');
+  document.getElementById('loaderOverlay').classList.add('hidden');
+  try {
+    products    = JSON.parse(localStorage.getItem('limitky_products') || '{}');
+    recentCodes = JSON.parse(localStorage.getItem('limitky_recent')   || '[]');
+  } catch(e) { products = {}; recentCodes = []; }
+}
+
+// ─── API HELPERS ──────────────────────────────────────────────────────────────
+function authHeader() {
+  const token = getToken();
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
+async function apiFetch(path, method = 'GET', body = null) {
+  const opts = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeader(),
+    },
+  };
+  if (body !== null) opts.body = JSON.stringify(body);
+  const res = await fetch(WORKER_URL + path, opts);
+  if (res.status === 401) { logout(); return; }
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+async function apiUploadPhoto(id, blob) {
+  const res = await fetch(`${WORKER_URL}/api/products/${id}/photo`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'image/jpeg', ...authHeader() },
+    body: blob,
+  });
+  if (!res.ok) throw new Error(`Photo upload ${res.status}`);
+  return res.json();
+}
+
+function b64toBlob(b64) {
+  const [header, data] = b64.split(',');
+  const mime = (header.match(/:(.*?);/) || [,'image/jpeg'])[1];
+  const bytes = atob(data);
+  const arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+// ─── DATA LOADING ─────────────────────────────────────────────────────────────
+async function loadProducts() {
+  if (!isConfigured) return;
+  const data = await apiFetch('/api/products');
+  products = {};
+  data.forEach(p => {
+    products[p.id] = {
+      ...p,
+      archived:  !!p.archived,
+      deleted:   !!p.deleted,
+      createdAt: p.created_at,
+      updatedAt: p.updated_at,
+      photo: p.photo_key
+        ? `${WORKER_URL}/api/products/${p.id}/photo`
+        : null,
+    };
+  });
+  renderProducts();
+  document.getElementById('loaderOverlay').classList.add('hidden');
+}
+
+async function loadRecent() {
+  if (!isConfigured) return;
+  recentCodes = await apiFetch('/api/recent');
+  renderRecentBar();
+}
+
+// ─── WRITE HELPERS ────────────────────────────────────────────────────────────
+async function apiSetProduct(key, p) {
+  if (!isConfigured) return;
+  setSyncStatus('syncing', 'Ukladám…');
+  const payload = { ...p };
+  delete payload.photo;   // foto je v R2, nie v D1
+  delete payload._key;
+  try {
+    await apiFetch(`/api/products/${key}`, 'PUT', payload);
+    setSyncStatus('online', 'Uložené');
+  } catch(e) {
+    setSyncStatus('offline', 'Chyba uloženia');
+    console.error(e);
+  }
+}
+
+async function apiRemoveProduct(key) {
+  if (!isConfigured) return;
+  await apiFetch(`/api/products/${key}`, 'DELETE');
+}
+
+async function apiUpdateRecent(codes) {
+  if (!isConfigured) return;
+  await apiFetch('/api/recent', 'PUT', codes);
+}
+
+// ─── INIT + POLLING ───────────────────────────────────────────────────────────
+async function initApp() {
+  if (!isConfigured) { renderProducts(); renderRecentBar(); return; }
+
+  // Show login if no token
+  if (!getToken()) {
+    document.getElementById('authOverlay').classList.remove('hidden');
+    document.getElementById('loaderOverlay').classList.add('hidden');
+    return;
+  }
+  document.getElementById('logoutBtn').style.display = '';
+
+  setSyncStatus('syncing', 'Načítavam…');
+  try {
+    await Promise.all([loadProducts(), loadRecent()]);
+    setSyncStatus('online', 'Online');
+    // Polling každých 30 sekúnd
+    setInterval(async () => {
+      await loadProducts();
+      await loadRecent();
+    }, 30000);
+  } catch(e) {
+    setSyncStatus('offline', 'Chyba pripojenia');
+    document.getElementById('loaderOverlay').classList.add('hidden');
+    console.error(e);
+  }
+}
+
+const STATUS_LABELS  = { stock:'Na sklade', preparing:'Bošany', sent:'U fotografa', returned:'Vrátené', published:'Na webe' };
+const STATUS_BADGES  = { stock:'badge-stock', preparing:'badge-preparing', sent:'badge-sent', returned:'badge-returned', published:'badge-published' };
+const STATUS_CLASSES = { stock:'', preparing:'status-preparing', sent:'status-sent', returned:'status-returned', published:'status-published' };
+const MODEL_PREFIXES = ['MIALIM', 'KTLIM', 'LILLIM', 'FRLIM', 'SMLIM'];
+
+// ─── SYNC STATUS UI ───────────────────────────────────────────────────────────
+function setSyncStatus(state, label) {
+  const dot = document.getElementById('syncDot');
+  const lbl = document.getElementById('syncLabel');
+  dot.className = 'sync-dot ' + state;
+  lbl.textContent = label;
+}
+
+
+// ─── FILTER ───────────────────────────────────────────────────────────────────
+function filterByStatus(status) {
+  currentFilter = status;
+  document.querySelectorAll('.stat').forEach(el => el.classList.remove('active-filter'));
+  document.getElementById('stat-' + (status==='all' ? 'all' : status)).classList.add('active-filter');
+  renderProducts();
+}
+
+function setView(v) {
+  currentView = v;
+  document.getElementById('gridView').classList.toggle('hidden', v !== 'grid');
+  document.getElementById('tableView').classList.toggle('hidden', v !== 'table');
+  document.getElementById('btnGrid').classList.toggle('active', v === 'grid');
+  document.getElementById('btnTable').classList.toggle('active', v === 'table');
+  renderProducts();
+}
+
+function getList() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  return Object.entries(products)
+    .map(([k, v]) => ({ ...v, _key: k }))
+    .filter(p => {
+      // section filter
+      if (currentSection === 'main' && (p.archived || p.deleted)) return false;
+      if (currentSection === 'archive' && (!p.archived || p.deleted)) return false;
+      if (currentSection === 'trash' && !p.deleted) return false;
+      const mf = currentFilter === 'all' || p.status === currentFilter;
+      const ms = !q || (p.code||'').toLowerCase().includes(q) || (p.name||'').toLowerCase().includes(q);
+      return mf && ms;
+    })
+    .sort((a, b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+}
+
+// ─── STATS ────────────────────────────────────────────────────────────────────
+function updateStats() {
+  const active = Object.values(products).filter(p => !p.archived && !p.deleted);
+  document.getElementById('count-all').textContent = active.length;
+  document.getElementById('count-preparing').textContent = active.filter(p => p.status==='preparing').length;
+  document.getElementById('count-sent').textContent = active.filter(p => p.status==='sent').length;
+  document.getElementById('count-returned').textContent = active.filter(p => p.status==='returned').length;
+  document.getElementById('count-published').textContent = active.filter(p => p.status==='published').length;
+  document.getElementById('count-archive').textContent = Object.values(products).filter(p => p.archived && !p.deleted).length;
+  document.getElementById('count-trash').textContent = Object.values(products).filter(p => p.deleted).length;
+}
+
+// ─── RECENT BAR ───────────────────────────────────────────────────────────────
+function renderRecentBar() {
+  const bar = document.getElementById('recentBar');
+  while (bar.children.length > 1) bar.removeChild(bar.lastChild);
+  if (!recentCodes.length) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  recentCodes.forEach(code => {
+    const btn = document.createElement('button');
+    btn.className = 'recent-chip';
+    btn.textContent = code;
+    btn.onclick = () => { openAddModal(); setTimeout(() => { document.getElementById('fieldCode').value = code; }, 50); };
+    bar.appendChild(btn);
+  });
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+function renderProducts() {
+  updateStats();
+  const list = getList();
+  if (currentView === 'grid') renderGrid(list);
+  else renderTable(list);
+}
+
+function renderGrid(list) {
+  const grid = document.getElementById('gridView');
+  grid.innerHTML = '';
+  if (!list.length) {
+    grid.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><p>Žiadne produkty</p></div>`;
+    return;
+  }
+  list.forEach(p => {
+    const card = document.createElement('div');
+    card.className = `card ${STATUS_CLASSES[p.status]||''}`;
+    const photoHTML = p.photo
+      ? `<img class="card-photo" src="${p.photo}" alt="" onclick="zoomPhoto('${p._key}')">`
+      : `<div class="card-photo-placeholder" onclick="quickPhoto('${p._key}')"><span class="cam-icon">📷</span><span>Pridať foto</span></div>`;
+    const noteHTML = p.note ? `<div class="card-note">📝 ${esc(p.note)}</div>` : '';
+    card.innerHTML = `
+      ${photoHTML}
+      <div class="card-body">
+        <div class="card-header">
+          <span class="card-code">${esc(p.code)}</span>
+          <span class="card-status-badge ${STATUS_BADGES[p.status]||'badge-stock'}">${STATUS_LABELS[p.status]||p.status}</span>
+        </div>
+        <div class="card-name">${esc(p.name)}</div>
+        ${p.farbaKoze ? `<div class="card-desc">🎨 ${esc(p.farbaKoze)}</div>` : ''}
+        ${p.farbaKovania ? `<div class="card-desc">⚙️ ${esc(p.farbaKovania)}</div>` : ''}
+        <div class="card-meta">
+          ${p.qty   ? `<div class="card-meta-item">Ks: <span>${p.qty}</span></div>` : ''}
+          ${p.price ? `<div class="card-meta-item">Cena: <span>${p.price}€</span></div>` : ''}
+          ${p.miesto ? `<div class="card-meta-item">Miesto: <span>${esc(p.miesto)}</span></div>` : ''}
+          ${p.date  ? `<div class="card-meta-item">Dátum: <span>${p.date}</span></div>` : ''}
+        </div>
+        ${noteHTML}
+        ${p.poznamka ? `<div class="card-note">💬 ${esc(p.poznamka)}</div>` : ''}
+        <div class="status-btns ${p.status && p.status!=='stock' ? 'has-status' : ''}">
+          <button class="status-btn btn-preparing ${p.status==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🔄 Bošany</button>
+          <button class="status-btn btn-sent ${p.status==='sent'?'active':''}" onclick="setStatus('${p._key}','sent')">📤 Fotograf</button>
+          <button class="status-btn btn-returned ${p.status==='returned'?'active':''}" onclick="setStatus('${p._key}','returned')">📥 Vrátené</button>
+          <button class="status-btn btn-published ${p.status==='published'?'active':''}" onclick="setStatus('${p._key}','published')">✅ Na webe</button>
+        </div>
+        <div class="card-actions">
+          ${currentSection === 'main' ? `
+            <button class="action-btn" onclick="openEditModal('${p._key}')">✏️ Editovať</button>
+            <button class="btn-archive" onclick="archiveProduct('${p._key}')">📁 Archív</button>
+            <button class="action-btn delete" onclick="trashProduct('${p._key}')">🗑️</button>
+          ` : currentSection === 'archive' ? `
+            <button class="btn-restore" onclick="restoreProduct('${p._key}')">↩️ Obnoviť</button>
+            <button class="btn-trash" onclick="trashProduct('${p._key}')">🗑️ Do koša</button>
+          ` : `
+            <button class="btn-restore" onclick="restoreProduct('${p._key}')">↩️ Obnoviť</button>
+            <button class="btn-permadelete" onclick="permanentDelete('${p._key}')">❌ Vymazať navždy</button>
+          `}
+        </div>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+function renderTable(list) {
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--gray3)">Žiadne produkty</td></tr>`;
+    return;
+  }
+  list.forEach(p => {
+    const tr = document.createElement('tr');
+    tr.className = STATUS_CLASSES[p.status] || '';
+    const thumbHTML = p.photo
+      ? `<img class="table-thumb" src="${p.photo}" onclick="zoomPhoto('${p._key}')">`
+      : `<div class="table-thumb" style="display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer" onclick="quickPhoto('${p._key}')">📷</div>`;
+    tr.innerHTML = `
+      <td><strong>${esc(p.code)}</strong></td>
+      <td>${thumbHTML}</td>
+      <td>${esc(p.name)}</td>
+      <td>${p.qty||'—'}</td>
+      <td>${p.price ? p.price+'€' : '—'}</td>
+      <td>${esc(p.farbaKoze||'—')} / ${esc(p.farbaKovania||'—')}</td>
+      <td>
+        <div class="table-status-btns ${p.status && p.status!=='stock' ? 'has-status' : ''}">
+          <button class="status-btn btn-preparing ${p.status==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🔄</button>
+          <button class="status-btn btn-sent ${p.status==='sent'?'active':''}" onclick="setStatus('${p._key}','sent')">📤</button>
+          <button class="status-btn btn-returned ${p.status==='returned'?'active':''}" onclick="setStatus('${p._key}','returned')">📥</button>
+          <button class="status-btn btn-published ${p.status==='published'?'active':''}" onclick="setStatus('${p._key}','published')">✅</button>
+        </div>
+      </td>
+      <td>
+        ${currentSection === 'main' ? `
+          <button class="action-btn" onclick="openEditModal('${p._key}')">✏️</button>
+          <button class="action-btn delete" onclick="trashProduct('${p._key}')">🗑️</button>
+        ` : currentSection === 'archive' ? `
+          <button class="btn-restore" onclick="restoreProduct('${p._key}')">↩️</button>
+          <button class="btn-trash" onclick="trashProduct('${p._key}')">🗑️</button>
+        ` : `
+          <button class="btn-restore" onclick="restoreProduct('${p._key}')">↩️</button>
+          <button class="btn-permadelete" onclick="permanentDelete('${p._key}')">❌</button>
+        `}
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ─── STATUS CHANGE ────────────────────────────────────────────────────────────
+async function setStatus(key, status) {
+  const p = products[key];
+  if (!p) return;
+  const newStatus = p.status === status ? 'stock' : status;
+  const updated = { ...p, status: newStatus, updatedAt: new Date().toISOString() };
+  products[key] = updated;
+  renderProducts();
+  await apiSetProduct(key, updated);
+  if (!isConfigured) localStorage.setItem('limitky_products', JSON.stringify(products));
+}
+
+// ─── SECTION SWITCH ──────────────────────────────────────────────────────────
+function switchSection(section) {
+  currentSection = section;
+  document.querySelectorAll('.section-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('sec-' + section).classList.add('active');
+  document.querySelector('.stats-bar').style.display = section === 'main' ? '' : 'none';
+  document.querySelector('.fab').style.display = section === 'main' ? '' : 'none';
+  renderProducts();
+}
+
+// ─── ARCHIVE / TRASH ─────────────────────────────────────────────────────────
+async function archiveProduct(key) {
+  const p = products[key];
+  if (!p) return;
+  p.archived = true;
+  p.updatedAt = new Date().toISOString();
+  renderProducts();
+  await apiSetProduct(key, p);
+  if (!isConfigured) localStorage.setItem('limitky_products', JSON.stringify(products));
+}
+
+async function restoreProduct(key) {
+  const p = products[key];
+  if (!p) return;
+  p.archived = false;
+  p.deleted  = false;
+  p.updatedAt = new Date().toISOString();
+  renderProducts();
+  await apiSetProduct(key, p);
+  if (!isConfigured) localStorage.setItem('limitky_products', JSON.stringify(products));
+}
+
+async function trashProduct(key) {
+  const p = products[key];
+  if (!p) return;
+  p.deleted = true;
+  p.updatedAt = new Date().toISOString();
+  renderProducts();
+  await apiSetProduct(key, p);
+  if (!isConfigured) localStorage.setItem('limitky_products', JSON.stringify(products));
+}
+
+async function permanentDelete(key) {
+  if (!confirm('Vymazať produkt navždy? Táto akcia je nezvratná.')) return;
+  delete products[key];
+  renderProducts();
+  await apiRemoveProduct(key);
+  if (!isConfigured) localStorage.setItem('limitky_products', JSON.stringify(products));
+}
+
+// ─── MODAL ────────────────────────────────────────────────────────────────────
+function openAddModal() {
+  editingId = null;
+  currentPhotoBase64 = null;
+  currentPhotoIsNew  = false;
+  document.getElementById('modalTitle').textContent = 'Nový produkt';
+  ['fieldCode','fieldName','fieldQty','fieldPrice','fieldMiesto','fieldNote','fieldPoznamka'].forEach(id => document.getElementById(id).value = '');
+  updateNamePreview();
+  document.getElementById('fieldDate').value = '';
+  document.getElementById('fieldStatus').value = 'stock';
+  document.getElementById('photoInput').value = '';
+  const prev = document.getElementById('photoPreview');
+  prev.src = ''; prev.classList.remove('visible');
+  document.getElementById('uploadHint').style.display = '';
+  renderQuickCodes();
+  document.getElementById('modalOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('fieldCode').focus(), 300);
+}
+
+function openEditModal(key) {
+  const p = products[key];
+  if (!p) return;
+  editingId = key;
+  currentPhotoBase64 = p.photo || null;   // URL alebo null
+  currentPhotoIsNew  = false;
+  document.getElementById('modalTitle').textContent = 'Editovať produkt';
+  document.getElementById('fieldCode').value  = p.code  || '';
+  document.getElementById('fieldName').value  = p.name  || '';
+  document.getElementById('fieldQty').value   = p.qty   || '';
+  document.getElementById('fieldPrice').value = p.price || '';
+  document.getElementById('fieldMiesto').value = p.miesto || '';
+  document.getElementById('fieldDate').value  = p.date  || '';
+  document.getElementById('fieldNote').value  = p.note  || '';
+  document.getElementById('fieldPoznamka').value = p.poznamka || '';
+  document.getElementById('fieldStatus').value = p.status || 'stock';
+  if (p.photo) {
+    const prev = document.getElementById('photoPreview');
+    prev.src = p.photo; prev.classList.add('visible');
+    document.getElementById('uploadHint').style.display = 'none';
+  } else {
+    document.getElementById('photoPreview').classList.remove('visible');
+    document.getElementById('uploadHint').style.display = '';
+  }
+  renderQuickCodes();
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+function handleOverlayClick(e) { if (e.target.id === 'modalOverlay') closeModal(); }
+
+async function saveProduct() {
+  const code = document.getElementById('fieldCode').value.trim().toUpperCase();
+  const name = document.getElementById('fieldName').value.trim();
+  if (!code || !name) { alert('Kód a názov sú povinné'); return; }
+  const now = new Date().toISOString();
+  const data = {
+    code, name,
+    qty:       document.getElementById('fieldQty').value    || '',
+    price:     document.getElementById('fieldPrice').value  || '',
+    miesto:    document.getElementById('fieldMiesto').value.trim(),
+    date:      document.getElementById('fieldDate').value,
+    note:      document.getElementById('fieldNote').value.trim(),
+    poznamka:  document.getElementById('fieldPoznamka').value.trim(),
+    status:    document.getElementById('fieldStatus').value,
+    archived:  editingId ? (products[editingId]?.archived ? 1 : 0) : 0,
+    deleted:   0,
+    updated_at: now,
+    created_at: editingId ? (products[editingId]?.created_at || products[editingId]?.createdAt || now) : now,
+  };
+
+  if (!isConfigured) {
+    const key = editingId || ('local_' + Date.now() + '_' + Math.random().toString(36).slice(2,7));
+    products[key] = { ...data, photo: currentPhotoBase64 || null, createdAt: data.created_at, updatedAt: data.updated_at };
+    const newRecent = [code, ...recentCodes.filter(c => c !== code)].slice(0, 8);
+    recentCodes = newRecent;
+    localStorage.setItem('limitky_products', JSON.stringify(products));
+    localStorage.setItem('limitky_recent', JSON.stringify(recentCodes));
+    closeModal();
+    renderProducts();
+    renderRecentBar();
+    return;
+  }
+
+  setSyncStatus('syncing', 'Ukladám…');
+  try {
+    let id;
+    if (editingId) {
+      id = editingId;
+      await apiFetch(`/api/products/${id}`, 'PUT', data);
+    } else {
+      const res = await apiFetch('/api/products', 'POST', data);
+      id = res.id;
+    }
+
+    // Nahraj nové foto do R2 ak bolo vybrané
+    if (currentPhotoIsNew && currentPhotoBase64) {
+      const blob = b64toBlob(currentPhotoBase64);
+      await apiUploadPhoto(id, blob);
+    }
+
+    // Aktualizuj nedávne kódy
+    const newRecent = [code, ...recentCodes.filter(c => c !== code)].slice(0, 8);
+    await apiUpdateRecent(newRecent);
+    recentCodes = newRecent;
+
+    setSyncStatus('online', 'Uložené');
+    closeModal();
+    await loadProducts();
+    renderRecentBar();
+  } catch(e) {
+    setSyncStatus('offline', 'Chyba uloženia');
+    console.error(e);
+  }
+}
+
+// ─── PHOTO ────────────────────────────────────────────────────────────────────
+function compressImage(file, maxW, quality, cb) {
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    const scale = Math.min(1, maxW / img.width);
+    const canvas = document.createElement('canvas');
+    canvas.width  = img.width  * scale;
+    canvas.height = img.height * scale;
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    cb(canvas.toDataURL('image/jpeg', quality));
+    URL.revokeObjectURL(url);
+  };
+  img.src = url;
+}
+
+function handlePhotoChange(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  compressImage(file, 900, 0.75, b64 => {
+    currentPhotoBase64 = b64;
+    currentPhotoIsNew  = true;
+    const prev = document.getElementById('photoPreview');
+    prev.src = b64; prev.classList.add('visible');
+    document.getElementById('uploadHint').style.display = 'none';
+  });
+}
+
+function quickPhoto(key) {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = 'image/*'; input.capture = 'environment';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    compressImage(file, 900, 0.75, async b64 => {
+      const p = products[key];
+      if (!p) return;
+      if (!isConfigured) {
+        const updated = { ...p, photo: b64, updatedAt: new Date().toISOString() };
+        products[key] = updated;
+        localStorage.setItem('limitky_products', JSON.stringify(products));
+        renderProducts();
+        return;
+      }
+      setSyncStatus('syncing', 'Nahrávam foto…');
+      try {
+        const blob = b64toBlob(b64);
+        await apiUploadPhoto(key, blob);
+        // Pridaj cache-buster aby prehliadač nenačítal starý obrázok
+        products[key].photo     = `${WORKER_URL}/api/products/${key}/photo?t=${Date.now()}`;
+        products[key].photo_key = `photos/${key}.jpg`;
+        setSyncStatus('online', 'Uložené');
+        renderProducts();
+      } catch(err) {
+        setSyncStatus('offline', 'Chyba nahrávania');
+        console.error(err);
+      }
+    });
+  };
+  input.click();
+}
+
+function zoomPhoto(key) {
+  const p = products[key];
+  if (!p || !p.photo) return;
+  document.getElementById('photoZoomImg').src = p.photo;
+  document.getElementById('photoModal').classList.add('open');
+}
+
+// ─── NAME BUILDER ────────────────────────────────────────────────────────────
+function appendName(word) {
+  const input = document.getElementById('fieldName');
+  const current = input.value.trim();
+  input.value = current ? current + ' ' + word : word;
+  updateNamePreview();
+  input.focus();
+}
+function clearName() {
+  document.getElementById('fieldName').value = '';
+  updateNamePreview();
+}
+function updateNamePreview() {
+  const val = document.getElementById('fieldName').value.trim();
+  document.getElementById('namePreview').textContent = val || '…';
+}
+
+// ─── QUICK CODES ──────────────────────────────────────────────────────────────
+function renderQuickCodes() {
+  const container = document.getElementById('quickCodes');
+  container.innerHTML = '';
+  const shown = new Set();
+  recentCodes.slice(0, 6).forEach(code => {
+    shown.add(code);
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'quick-code-btn'; btn.textContent = code;
+    btn.onclick = () => { document.getElementById('fieldCode').value = code; };
+    container.appendChild(btn);
+  });
+  MODEL_PREFIXES.forEach(prefix => {
+    if ([...shown].some(c => c.startsWith(prefix))) return;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'quick-code-btn'; btn.style.opacity = '0.5';
+    btn.textContent = prefix + '…';
+    btn.onclick = () => { document.getElementById('fieldCode').value = prefix; document.getElementById('fieldCode').focus(); };
+    container.appendChild(btn);
+  });
+}
+
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+function esc(str) {
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── EXPORT PDF ──────────────────────────────────────────────────────────────
+function exportPDF() {
+  const active = Object.values(products).filter(p => !p.archived && !p.deleted);
+  if (!active.length) { alert('Žiadne produkty na export'); return; }
+
+  const now = new Date().toLocaleDateString('sk-SK');
+  const groups = {};
+  active.forEach(p => {
+    const s = STATUS_LABELS[p.status] || 'Na sklade';
+    if (!groups[s]) groups[s] = [];
+    groups[s].push(p);
+  });
+
+  let html = `<html><head><meta charset="utf-8"><title>Limitky Export ${now}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; font-size: 12px; }
+    h1 { font-size: 18px; margin-bottom: 4px; }
+    h2 { font-size: 14px; margin: 16px 0 6px; padding: 4px 8px; border-radius: 4px; }
+    .bg-stock { background: #F5F5F5; }
+    .bg-preparing { background: #E0F7FA; }
+    .bg-sent { background: #FFF3E0; }
+    .bg-returned { background: #E3F2FD; }
+    .bg-published { background: #E8F5E9; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    th, td { border: 1px solid #DDD; padding: 5px 8px; text-align: left; }
+    th { background: #F9F9F9; font-weight: 600; }
+    .summary { color: #666; font-size: 11px; margin-bottom: 16px; }
+    @media print { body { padding: 0; } }
+  </style></head><body>
+  <h1>👜 Limitky — Prehľad produktov</h1>
+  <div class="summary">${now} · Celkom: ${active.length} produktov</div>`;
+
+  const statusOrder = ['preparing','sent','returned','published','stock'];
+  const bgClass = { 'Na sklade':'bg-stock', 'Bošany':'bg-preparing', 'U fotografa':'bg-sent', 'Vrátené':'bg-returned', 'Na webe':'bg-published' };
+
+  statusOrder.forEach(sk => {
+    const label = STATUS_LABELS[sk] || sk;
+    const items = groups[label];
+    if (!items || !items.length) return;
+    html += '<h2 class="' + (bgClass[label]||'') + '">' + label + ' (' + items.length + ')</h2>';
+    html += '<table><tr><th>Kód</th><th>Názov</th><th>Ks</th><th>Cena</th><th>Miesto</th><th>Dátum</th></tr>';
+    items.forEach(p => {
+      html += '<tr><td>' + (p.code||'') + '</td><td>' + (p.name||'') + '</td><td>' + (p.qty||'—') + '</td><td>' + (p.price ? p.price+'€' : '—') + '</td><td>' + (p.miesto||'—') + '</td><td>' + (p.date||'—') + '</td></tr>';
+    });
+    html += '</table>';
+  });
+
+  html += '</body></html>';
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+  win.print();
+}
+
+initApp();
+</script>
+</body>
+</html>
