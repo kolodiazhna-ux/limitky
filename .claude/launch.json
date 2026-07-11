@@ -4,15 +4,12 @@
     {
       "name": "limitky",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["wrangler", "dev", "--port", "8787"],
+      "runtimeArgs": [
+        "wrangler",
+        "dev"
+      ],
       "cwd": "worker",
-      "port": 8787
-    },
-    {
-      "name": "foto-studio",
-      "runtimeExecutable": "/Users/olhakolodiazhna/Documents/AI/Edit produkt photo/.venv/bin/python",
-      "runtimeArgs": ["/Users/olhakolodiazhna/Documents/AI/Edit produkt photo/studio_server.py"],
-      "port": 8765
+      "autoPort": true
     }
   ]
 }
