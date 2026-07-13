@@ -88,6 +88,20 @@
   .cat-tab { border: 1.5px solid var(--gray2); background: var(--white); color: var(--text); border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: all .15s; }
   .cat-tab.active { background: var(--purple); border-color: var(--purple); color: var(--white); }
 
+  /* WORKFLOW BAR — etapy procesu (nové → v procese → schválenie → hotové) */
+  .wf-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 10px 12px; background: var(--white); border-bottom: 1px solid var(--gray2); }
+  .wf-btn { border: 2px solid var(--gray2); background: var(--white); border-radius: 12px; padding: 8px 4px; font-size: 11px; font-weight: 700; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; transition: all .15s; color: var(--gray3); }
+  .wf-btn .wf-num { font-size: 20px; line-height: 1; }
+  .wf-btn:active { transform: scale(0.97); }
+  .wf-new    .wf-num { color: var(--purple); }
+  .wf-progress .wf-num { color: var(--orange); }
+  .wf-approval .wf-num { color: #F9A825; }
+  .wf-done   .wf-num { color: var(--green); }
+  .wf-new.active    { border-color: var(--purple); background: #F3EDFB; color: var(--purple-dark); }
+  .wf-progress.active { border-color: var(--orange); background: #FFF3E0; color: var(--orange); }
+  .wf-approval.active { border-color: #F9A825; background: #FFF8E1; color: #B28704; }
+  .wf-done.active   { border-color: var(--green); background: #E8F5E9; color: #2E7D32; }
+
   /* STATS */
   .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 6px; padding: 10px 12px; background: var(--white); border-bottom: 1px solid var(--gray2); }
   .stat { text-align: center; padding: 8px 4px; border-radius: 10px; cursor: pointer; transition: opacity 0.15s; border: 2px solid transparent; }
@@ -129,6 +143,8 @@
   .card.status-sent { border-left-color: var(--orange); }
   .card.status-returned { border-left-color: var(--blue); }
   .card.status-published { border-left-color: var(--green); background: #F6FFF8; }
+  .card.status-approval { border-left-color: #F9A825; background: #FFFDE7; }
+  .card.refoto { border-left-color: var(--red); background: #FFF5F5; }
   .card-photo { width: 100%; aspect-ratio: 1 / 1; height: auto; object-fit: cover; background: var(--gray); display: block; cursor: zoom-in; }
   .card-photo-placeholder { width: 100%; height: 110px; background: var(--gray); display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--gray3); font-size: 13px; gap: 6px; cursor: pointer; }
   .card-photo-placeholder .cam-icon { font-size: 26px; }
@@ -142,6 +158,7 @@
   .badge-sent { background: #FFF3E0; color: var(--orange); }
   .badge-returned { background: #E3F2FD; color: var(--blue); }
   .badge-published { background: #E8F5E9; color: #2E7D32; }
+  .badge-approval { background: #FFF8E1; color: #B28704; }
   .card-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; line-height: 1.3; }
   .card-desc { font-size: 13px; color: var(--gray3); margin-bottom: 8px; }
   .card-meta { display: flex; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
@@ -163,6 +180,13 @@
   .btn-returned.active, .btn-returned:hover { background: var(--blue); color: white; }
   .btn-published { background: #E8F5E9; color: #2E7D32; }
   .btn-published.active, .btn-published:hover { background: var(--green); color: white; }
+  .refoto-banner { display: flex; align-items: center; gap: 8px; background: #FFEBEE; border: 2px solid var(--red); color: #C62828; border-radius: 10px; padding: 8px 10px; font-size: 13px; font-weight: 700; margin-bottom: 8px; animation: refotoPulse 1.6s ease infinite; }
+  @keyframes refotoPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(192,57,43,0.35); } 50% { box-shadow: 0 0 0 6px rgba(192,57,43,0); } }
+  .refoto-banner .refoto-text { flex: 1; }
+  .refoto-done-btn { border: none; background: var(--red); color: white; border-radius: 8px; padding: 5px 10px; font-size: 11px; font-weight: 700; cursor: pointer; flex-shrink: 0; }
+  .btn-approve { width: 100%; border: none; background: var(--green); color: white; border-radius: 10px; padding: 10px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 8px; }
+  .btn-approve:active { opacity: 0.85; }
+  .btn-approve-sm { width: auto; padding: 6px 10px; font-size: 11px; margin: 0 0 4px; }
   .card-actions { display: flex; gap: 6px; margin-top: 8px; justify-content: flex-end; }
   .action-btn { background: var(--gray); border: none; border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; font-weight: 500; }
   .action-btn.delete { color: var(--red); }
@@ -178,6 +202,9 @@
   .products-table tr.status-sent td { background: #FFF8F0; }
   .products-table tr.status-returned td { background: #EEF4FF; }
   .products-table tr.status-published td { background: #F0FFF4; }
+  .products-table tr.status-approval td { background: #FFFDE7; }
+  .products-table tr.refoto td { background: #FFEBEE; }
+  .refoto-cell-note { display: block; margin-top: 4px; background: #FFCDD2; color: #B71C1C; border-radius: 6px; padding: 4px 7px; font-size: 11px; font-weight: 700; }
   .table-thumb { width: 50px; height: 40px; object-fit: cover; border-radius: 6px; background: var(--gray); display: block; cursor: zoom-in; }
   .table-status-btns { display: flex; gap: 4px; }
   .table-status-btns .status-btn { padding: 5px 6px; font-size: 10px; min-width: 60px; }
@@ -354,6 +381,21 @@
   <button class="cat-tab" data-cat="kozmetika" onclick="setCategory('kozmetika')">Kozmetika</button>
 </div>
 
+<div class="wf-bar" id="wfBar">
+  <button class="wf-btn wf-new" id="wf-new" onclick="filterByWF('new')">
+    <span class="wf-num" id="wfcount-new">—</span>🆕 Nové zadania
+  </button>
+  <button class="wf-btn wf-progress" id="wf-progress" onclick="filterByWF('progress')">
+    <span class="wf-num" id="wfcount-progress">—</span>📸 Pracuje sa
+  </button>
+  <button class="wf-btn wf-approval" id="wf-approval" onclick="filterByWF('approval')">
+    <span class="wf-num" id="wfcount-approval">—</span>⏳ Na schválenie
+  </button>
+  <button class="wf-btn wf-done" id="wf-done" onclick="filterByWF('done')">
+    <span class="wf-num" id="wfcount-done">—</span>✅ Hotové
+  </button>
+</div>
+
 <div class="stats-bar">
   <div class="stat stat-all active-filter" onclick="filterByStatus('all')" id="stat-all">
     <div class="stat-num" id="count-all">—</div>
@@ -399,7 +441,9 @@
   <div class="legend-item"><div class="legend-dot" style="background:#ccc"></div>Sklad</div>
   <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div>U fotografa</div>
   <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>Vrátené</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#F9A825"></div>Čaká na schválenie</div>
   <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Na webe ✓</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Prefotiť!</div>
 </div>
 
 <div class="products-grid" id="gridView"></div>
@@ -503,6 +547,7 @@
         <option value="partizanske">🏙️ Partizánske</option>
         <option value="sent">📤 U fotografa</option>
         <option value="returned">📥 Vrátené z fotenia</option>
+        <option value="approval">⏳ Čaká na schválenie</option>
         <option value="published">✅ Foto na webe</option>
       </select>
     </div>
@@ -814,9 +859,18 @@ function setCategory(cat) {
   renderProducts();
 }
 
-const STATUS_LABELS  = { stock:'Na sklade', preparing:'Bošany', partizanske:'Partizánske', sent:'U fotografa', returned:'Vrátené', published:'Na webe' };
-const STATUS_BADGES  = { stock:'badge-stock', preparing:'badge-preparing', partizanske:'badge-partizanske', sent:'badge-sent', returned:'badge-returned', published:'badge-published' };
-const STATUS_CLASSES = { stock:'', preparing:'status-preparing', partizanske:'status-partizanske', sent:'status-sent', returned:'status-returned', published:'status-published' };
+const STATUS_LABELS  = { stock:'Na sklade', preparing:'Bošany', partizanske:'Partizánske', sent:'U fotografa', returned:'Vrátené', approval:'Na schválenie', published:'Na webe' };
+const STATUS_BADGES  = { stock:'badge-stock', preparing:'badge-preparing', partizanske:'badge-partizanske', sent:'badge-sent', returned:'badge-returned', approval:'badge-approval', published:'badge-published' };
+const STATUS_CLASSES = { stock:'', preparing:'status-preparing', partizanske:'status-partizanske', sent:'status-sent', returned:'status-returned', approval:'status-approval', published:'status-published' };
+
+// ─── ETAPY PROCESU (podľa Mirky: nové → pracuje sa → schválenie → hotové) ─────
+function workflowGroup(p) {
+  if (p.refoto) return 'new';                    // treba prefotiť → vstupuje do procesu znova
+  if (p.fotoStage === 'published') return 'done';
+  if (p.fotoStage === 'approval')  return 'approval';
+  if (p.fotoStage === 'sent' || p.fotoStage === 'returned') return 'progress';
+  return 'new';                                  // sklad / Bošany / Partizánske
+}
 const MODEL_PREFIXES = ['MIALIM', 'KTLIM', 'LILLIM', 'FRLIM', 'SMLIM'];
 
 // ─── SYNC STATUS UI ───────────────────────────────────────────────────────────
@@ -829,6 +883,15 @@ function setSyncStatus(state, label) {
 
 
 // ─── FILTER ───────────────────────────────────────────────────────────────────
+let currentWF = 'all'; // 'all' | 'new' | 'progress' | 'approval' | 'done'
+
+function filterByWF(group) {
+  currentWF = currentWF === group ? 'all' : group;
+  document.querySelectorAll('.wf-btn').forEach(el => el.classList.remove('active'));
+  if (currentWF !== 'all') document.getElementById('wf-' + currentWF).classList.add('active');
+  renderProducts();
+}
+
 function filterByStatus(status) {
   currentFilter = status;
   document.querySelectorAll('.stat').forEach(el => el.classList.remove('active-filter'));
@@ -857,8 +920,9 @@ function getList() {
       if (currentSection === 'archive' && (!p.archived || p.deleted)) return false;
       if (currentSection === 'trash' && !p.deleted) return false;
       const mf = currentFilter === 'all' || p.fotoStage === currentFilter;
+      const mw = currentWF === 'all' || workflowGroup(p) === currentWF;
       const ms = !q || (p.code||'').toLowerCase().includes(q) || (p.name||'').toLowerCase().includes(q);
-      return mf && ms;
+      return mf && mw && ms;
     })
     .sort((a, b) => (b.createdAt||'').localeCompare(a.createdAt||''));
 }
@@ -875,6 +939,9 @@ function updateStats() {
   document.getElementById('count-published').textContent = active.filter(p => p.fotoStage==='published').length;
   document.getElementById('count-archive').textContent = inCat.filter(p => p.archived && !p.deleted).length;
   document.getElementById('count-trash').textContent = inCat.filter(p => p.deleted).length;
+  ['new','progress','approval','done'].forEach(g => {
+    document.getElementById('wfcount-' + g).textContent = active.filter(p => workflowGroup(p) === g).length;
+  });
 }
 
 // ─── RECENT BAR ───────────────────────────────────────────────────────────────
@@ -909,7 +976,7 @@ function renderGrid(list) {
   }
   list.forEach(p => {
     const card = document.createElement('div');
-    card.className = `card ${STATUS_CLASSES[p.fotoStage]||''}`;
+    card.className = `card ${STATUS_CLASSES[p.fotoStage]||''} ${p.refoto ? 'refoto' : ''}`;
     const photoHTML = p.photo
       ? `<img class="card-photo" src="${p.photo}" alt="" onclick="zoomPhoto('${p._key}')">`
       : `<div class="card-photo-placeholder" onclick="quickPhoto('${p._key}')"><span class="cam-icon">📷</span><span>Pridať foto</span></div>`;
@@ -922,6 +989,7 @@ function renderGrid(list) {
     card.innerHTML = `
       ${photoHTML}
       <div class="card-body">
+        ${p.refoto ? `<div class="refoto-banner"><span>🔁</span><span class="refoto-text">PREFOTIŤ${p.refotoNote ? ': ' + esc(p.refotoNote) : ''}</span><button class="refoto-done-btn" onclick="clearRefoto('${p._key}')">✓ Vybavené</button></div>` : ''}
         <div class="card-header">
           <span class="card-code">${esc(p.code)}</span>
           <span class="card-status-badge ${STATUS_BADGES[p.fotoStage]||'badge-stock'}">${STATUS_LABELS[p.fotoStage]||STATUS_LABELS.stock}</span>
@@ -933,12 +1001,13 @@ function renderGrid(list) {
           ${p.qty   ? `<div class="card-meta-item">Ks: <span>${p.qty}</span></div>` : ''}
           ${p.price ? `<div class="card-meta-item">Cena: <span>${p.price}€</span></div>` : ''}
           ${p.place ? `<div class="card-meta-item">Miesto: <span>${esc(p.place)}</span></div>` : ''}
-          ${p.date  ? `<div class="card-meta-item">Dátum: <span>${fmtDate(p.date)}</span></div>` : ''}
+          <div class="card-meta-item cell-editable" onclick="editDate(this,'${p._key}')" title="Kliknite pre zmenu dátumu uverejnenia">Dátum: <span>${p.date ? fmtDate(p.date) : '—'} ✎</span></div>
           ${p.status ? `<div class="card-meta-item">Mesto: <span>${esc(p.status)}</span></div>` : ''}
         </div>
         ${noteHTML}
         ${p.note ? `<div class="card-note">💬 ${esc(p.note)}</div>` : ''}
         ${links ? `<div class="card-links">${links}</div>` : ''}
+        ${p.fotoStage === 'approval' ? `<button class="btn-approve" onclick="approveProduct('${p._key}')">✅ Schváliť → Hotové</button>` : ''}
         <div class="status-btns ${p.fotoStage && p.fotoStage!=='stock' ? 'has-status' : ''}">
           <button class="status-btn btn-preparing ${p.fotoStage==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🏘️ Bošany</button>
           <button class="status-btn btn-partizanske ${p.fotoStage==='partizanske'?'active':''}" onclick="setStatus('${p._key}','partizanske')">🏙️ Partizánske</button>
@@ -950,6 +1019,7 @@ function renderGrid(list) {
         <div class="card-actions">
           ${currentSection === 'main' ? `
             <button class="action-btn" onclick="openEditModal('${p._key}')">✏️ Editovať</button>
+            ${!p.refoto ? `<button class="action-btn" style="color:var(--red)" onclick="markRefoto('${p._key}')">🔁 Prefotiť</button>` : ''}
             <button class="btn-archive" onclick="archiveProduct('${p._key}')">📁 Archív</button>
             <button class="action-btn delete" onclick="trashProduct('${p._key}')">🗑️</button>
           ` : currentSection === 'archive' ? `
@@ -974,7 +1044,7 @@ function renderTable(list) {
   }
   list.forEach(p => {
     const tr = document.createElement('tr');
-    tr.className = STATUS_CLASSES[p.fotoStage] || '';
+    tr.className = `${STATUS_CLASSES[p.fotoStage] || ''} ${p.refoto ? 'refoto' : ''}`;
     const thumbHTML = p.photo
       ? `<img class="table-thumb" src="${p.photo}" onclick="zoomPhoto('${p._key}')">`
       : `<div class="table-thumb" style="display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer" onclick="quickPhoto('${p._key}')">📷</div>`;
@@ -990,17 +1060,18 @@ function renderTable(list) {
     tr.innerHTML = `
       <td><strong>${esc(p.code)}</strong></td>
       <td>${thumbHTML}</td>
-      <td>${esc(p.name)}</td>
+      <td>${esc(p.name)}${p.refoto ? `<span class="refoto-cell-note">🔁 PREFOTIŤ${p.refotoNote ? ': ' + esc(p.refotoNote) : ''} <button class="refoto-done-btn" onclick="clearRefoto('${p._key}')">✓</button></span>` : ''}</td>
       <td>${p.qty||'—'}</td>
       <td>${p.price ? p.price+'€' : '—'}</td>
       <td>${esc(p.place||'—')}</td>
-      <td style="white-space:nowrap">${p.date ? fmtDate(p.date) : '—'}</td>
+      <td class="cell-editable" style="white-space:nowrap" onclick="editDate(this,'${p._key}')" title="Kliknite pre zmenu dátumu uverejnenia">${p.date ? fmtDate(p.date) : '—'} ✎</td>
       <td class="cell-editable" onclick="editField('${p._key}','desc')" title="Kliknite pre úpravu popisu">${esc(p.desc||'—')}</td>
       <td class="cell-editable" onclick="editField('${p._key}','note')" title="Kliknite pre úpravu poznámky">${noteParts||'—'}</td>
       <td class="cell-editable" onclick="editMesto(this,'${p._key}')" title="Kliknite pre zmenu mesta">${esc(p.status||'—')}</td>
       <td style="text-align:center"><input type="checkbox" class="hotove-chk" onchange="toggleHotove('${p._key}', this.checked)" ${p.bucket==='soldout'?'checked':''} title="Hotové"></td>
       <td style="white-space:nowrap">${linkParts} <button class="link-edit-btn" onclick="editLinks('${p._key}')" title="Upraviť odkazy">✎</button></td>
       <td>
+        ${p.fotoStage === 'approval' ? `<button class="btn-approve btn-approve-sm" onclick="approveProduct('${p._key}')">✅ Schváliť</button>` : ''}
         <div class="table-status-btns ${p.fotoStage && p.fotoStage!=='stock' ? 'has-status' : ''}">
           <button class="status-btn btn-preparing ${p.fotoStage==='preparing'?'active':''}" onclick="setStatus('${p._key}','preparing')">🏘️</button>
           <button class="status-btn btn-partizanske ${p.fotoStage==='partizanske'?'active':''}" onclick="setStatus('${p._key}','partizanske')">🏙️</button>
@@ -1012,6 +1083,7 @@ function renderTable(list) {
       <td>
         ${currentSection === 'main' ? `
           <button class="action-btn" onclick="openEditModal('${p._key}')">✏️</button>
+          ${!p.refoto ? `<button class="action-btn" style="color:var(--red)" onclick="markRefoto('${p._key}')" title="Označiť na prefotenie">🔁</button>` : ''}
           <button class="action-btn delete" onclick="trashProduct('${p._key}')">🗑️</button>
         ` : currentSection === 'archive' ? `
           <button class="btn-restore" onclick="restoreProduct('${p._key}')">↩️</button>
@@ -1033,7 +1105,7 @@ async function setStatus(key, status) {
   p.fotoStage = newStatus;
   // Premietnuť aj do hlavnej Sklad appky (stĺpec „Stav fotenia")
   if (newStatus === 'sent') p.photoStatus = 'Poslané na fotenie';
-  else if (newStatus === 'returned' || newStatus === 'published') p.photoStatus = 'Vyfotené';
+  else if (newStatus === 'returned' || newStatus === 'approval' || newStatus === 'published') p.photoStatus = 'Vyfotené';
   renderProducts();
   await pushProducts();
 }
@@ -1182,6 +1254,11 @@ async function saveProduct() {
       photo: prev.photo || null,
     };
 
+    // Pridaný/zmenený odkaz na fotky (a status nebol ručne zmenený) → Čaká na schválenie
+    const linkAdded = data.photoLink && data.photoLink !== (prev.photoLink || '');
+    const statusUntouched = data.fotoStage === (prev.fotoStage || 'stock');
+    if (linkAdded && statusUntouched) applyAutoApproval(products[id]);
+
     // Nahraj nové foto ak bolo vybrané
     if (currentPhotoIsNew && currentPhotoBase64) {
       await apiSavePhoto(id, currentPhotoBase64);
@@ -1312,14 +1389,80 @@ async function editLinks(key) {
   const p = products[key];
   if (!p) return;
   const fields = [['photoLink', 'Odkaz na fotky (Drive…)'], ['webSk', 'Web SK'], ['webCz', 'Web CZ']];
-  let changed = false;
+  let changed = false, linkAdded = false;
   for (const [f, label] of fields) {
     const val = window.prompt(label + ':', p[f] || '');
     if (val === null) continue;
-    if (val.trim() !== (p[f] || '')) { p[f] = val.trim(); changed = true; }
+    if (val.trim() !== (p[f] || '')) {
+      if (f === 'photoLink' && val.trim()) linkAdded = true;
+      p[f] = val.trim();
+      changed = true;
+    }
   }
+  if (linkAdded) applyAutoApproval(p);
   renderProducts();
   if (changed) await pushProducts();
+}
+
+// Nový/zmenený odkaz na fotky → automaticky „Čaká na schválenie" (podľa Mirky)
+function applyAutoApproval(p) {
+  if (p.fotoStage === 'published' && !p.refoto) return; // hotové sa nevracia, iba pri prefotení
+  p.fotoStage = 'approval';
+  p.refoto = false;
+  p.photoStatus = 'Vyfotené';
+}
+
+// Mirka schváli fotky → produkt sa presunie do Hotových
+async function approveProduct(key) {
+  const p = products[key];
+  if (!p) return;
+  p.fotoStage = 'published';
+  p.photoStatus = 'Vyfotené';
+  p.refoto = false;
+  renderProducts();
+  await pushProducts();
+}
+
+// Označí produkt na prefotenie s viditeľným komentárom
+async function markRefoto(key) {
+  const p = products[key];
+  if (!p) return;
+  const note = window.prompt('Komentár — čo treba prefotiť / opraviť:', p.refotoNote || '');
+  if (note === null) return;
+  p.refoto = true;
+  p.refotoNote = note.trim();
+  renderProducts();
+  await pushProducts();
+}
+
+async function clearRefoto(key) {
+  const p = products[key];
+  if (!p) return;
+  p.refoto = false;
+  p.refotoNote = '';
+  renderProducts();
+  await pushProducts();
+}
+
+// Dátum uverejnenia: klik na bunku/riadok otvorí výber dátumu priamo na mieste
+function editDate(cell, key) {
+  const p = products[key];
+  if (!p || cell.querySelector('input')) return;
+  const inp = document.createElement('input');
+  inp.type = 'date';
+  inp.value = p.date || '';
+  cell.textContent = '';
+  cell.appendChild(inp);
+  inp.focus();
+  let finished = false;
+  const done = async (save) => {
+    if (finished) return;
+    finished = true;
+    if (save && inp.value !== (p.date || '')) { p.date = inp.value; await pushProducts(); }
+    renderProducts();
+  };
+  inp.addEventListener('change', () => done(true));
+  inp.addEventListener('blur', () => done(true));
 }
 
 // Hotové: galočka presunie produkt do priečinka Hotové v Sklad appke (a späť)
@@ -1432,6 +1575,7 @@ function exportPDF() {
     .bg-partizanske { background: #F3EDFB; }
     .bg-sent { background: #FFF3E0; }
     .bg-returned { background: #E3F2FD; }
+    .bg-approval { background: #FFF8E1; }
     .bg-published { background: #E8F5E9; }
     table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
     th, td { border: 1px solid #DDD; padding: 5px 8px; text-align: left; }
@@ -1442,8 +1586,8 @@ function exportPDF() {
   <h1>👜 Limitky — Prehľad produktov</h1>
   <div class="summary">${now} · Celkom: ${active.length} produktov</div>`;
 
-  const statusOrder = ['preparing','partizanske','sent','returned','published','stock'];
-  const bgClass = { 'Na sklade':'bg-stock', 'Bošany':'bg-preparing', 'Partizánske':'bg-partizanske', 'U fotografa':'bg-sent', 'Vrátené':'bg-returned', 'Na webe':'bg-published' };
+  const statusOrder = ['preparing','partizanske','sent','returned','approval','published','stock'];
+  const bgClass = { 'Na sklade':'bg-stock', 'Bošany':'bg-preparing', 'Partizánske':'bg-partizanske', 'U fotografa':'bg-sent', 'Vrátené':'bg-returned', 'Na schválenie':'bg-approval', 'Na webe':'bg-published' };
 
   statusOrder.forEach(sk => {
     const label = STATUS_LABELS[sk] || sk;

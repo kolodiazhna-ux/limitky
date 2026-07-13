@@ -6,10 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": [
         "wrangler",
-        "dev"
+        "dev",
+        "--port",
+        "8787"
       ],
       "cwd": "worker",
-      "autoPort": true
+      "port": 8787
     }
   ]
 }
