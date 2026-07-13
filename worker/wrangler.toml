@@ -1,7 +1,8 @@
 name            = "limitky-api"
 main            = "src/index.js"
 compatibility_date = "2024-12-01"
-account_id      = "4a72683f467376012dd11b810368ed41"
+# Produkčný účet: kolodiazhna@dajanarodriguez.com → limitky-api.kolodiazhna.workers.dev
+account_id      = "a1f8ace24040806c01beedb1b4920450"
 
 # ─── Static site (Sklad/Inventár frontend) ──────────────────────────────────
 # Worker serves files from ../inventory for any request that matches a file.
@@ -13,7 +14,7 @@ directory = "../inventory"
 [[d1_databases]]
 binding      = "DB"
 database_name = "limitky"
-database_id  = "22c23326-4d80-42fd-bd0a-f562542a214a"
+database_id  = "43f6c13e-0ad0-4e43-b32b-dd36f942744a"
 
 # ─── R2 Bucket ────────────────────────────────────────────────────────────────
 # DISABLED until R2 is enabled in the Cloudflare Dashboard (Dashboard → R2 → Enable).
