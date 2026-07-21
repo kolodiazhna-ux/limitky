@@ -413,13 +413,20 @@ function workflowGroup(r) {
    Píše sa priamo do fotoStage → synchronizované s Fotením a s etapami vyššie. */
 const FOTO_DD = [
   { v: "",          label: "—" },
+  { v: "sent",      label: "odoslané na fotenie" },
   { v: "returned",  label: "odfotené" },
   { v: "approval",  label: "čaká na schválenie" },
   { v: "published", label: "schválené" },
 ];
-const FOTO_DD_VALUES = ["returned", "approval", "published"];
+const FOTO_DD_VALUES = ["sent", "returned", "approval", "published"];
 function fotoDdValue(r) { return FOTO_DD_VALUES.includes(r.fotoStage) ? r.fotoStage : ""; }
-function fotoDdClass(v) { return v === "published" ? "b-ok" : v === "approval" ? "b-info" : v === "returned" ? "b-warn" : "b-empty"; }
+function fotoDdClass(v) { return v === "published" ? "b-ok" : v === "approval" ? "b-info" : v === "returned" ? "b-warn" : v === "sent" ? "b-blue" : "b-empty"; }
+// Etapa fotenia → staré pole photoStatus (kvôli kompatibilite s inými pohľadmi)
+function photoStatusForStage(stage) {
+  if (stage === "sent") return "Poslané na fotenie";
+  if (stage === "returned" || stage === "approval" || stage === "published") return "Vyfotené";
+  return "";
+}
 function fotoDdSelect(r) {
   const cur = fotoDdValue(r);
   const opts = FOTO_DD.map((o) => `<option value="${o.v}" ${o.v === cur ? "selected" : ""}>${o.label}</option>`).join("");
@@ -1060,8 +1067,8 @@ function bindRowEvents() {
   document.querySelectorAll(".foto-dd").forEach((sel) => {
     sel.addEventListener("change", () => {
       const row = data.find((r) => r.id === +sel.dataset.fotodd);
-      row.fotoStage = sel.value;                       // "", returned, approval, published
-      row.photoStatus = sel.value ? "Vyfotené" : "";   // synchronizácia so starým poľom
+      row.fotoStage = sel.value;                       // "", sent, returned, approval, published
+      row.photoStatus = photoStatusForStage(sel.value); // synchronizácia so starým poľom
       if (sel.value) row.refoto = false;               // výber stavu ruší príznak „prefotiť"
       save();
       render();                                        // produkt sa presunie do správnej etapy
@@ -1481,7 +1488,7 @@ async function saveModal() {
     transferUp: $("#f-transferUp").value.trim(),
     transferDown: $("#f-transferDown").value.trim(),
     fotoStage: newStage,
-    photoStatus: newStage ? "Vyfotené" : "",
+    photoStatus: photoStatusForStage(newStage),
     photoLink: $("#f-photoLink").value.trim(),
     webSk: $("#f-webSk").value.trim(),
     webCz: $("#f-webCz").value.trim(),
