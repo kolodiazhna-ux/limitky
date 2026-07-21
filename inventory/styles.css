@@ -211,9 +211,10 @@ select.filter {
 /* ---------- Table ---------- */
 .table-wrap {
   margin: 20px 28px 40px; background: var(--white);
-  border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
+  border-radius: var(--radius); box-shadow: var(--shadow); overflow-x: auto;
 }
-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+/* min-width: na užších obrazovkách sa tabuľka nestláča do prekrytia, radšej sa vodorovne posúva */
+table { width: 100%; min-width: 1300px; border-collapse: collapse; table-layout: fixed; }
 thead th {
   background: linear-gradient(135deg, var(--primary), var(--primary-dark));
   color: #fff; font-size: 11px; font-weight: 700; text-transform: uppercase;

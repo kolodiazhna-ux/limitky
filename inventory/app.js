@@ -1332,6 +1332,14 @@ function resizeImage(file, max = 1000, quality = 0.72) {
 }
 
 function uploadPhotoFor(id) {
+  const _row = data.find((r) => r.id === id);
+  // Ak fotka už existuje, klik ponúkne vymazať (OK) alebo nahradiť novou (Zrušiť)
+  if (_row && photoOf(_row)) {
+    if (confirm("Vymazať fotku tohto produktu?\n\nOK = vymazať fotku\nZrušiť = nahradiť novou")) {
+      setPhoto(id, "").then(() => { render(); toast("Fotka vymazaná"); });
+      return;
+    }
+  }
   const inp = document.createElement("input");
   inp.type = "file"; inp.accept = "image/*";
   inp.onchange = async () => {
