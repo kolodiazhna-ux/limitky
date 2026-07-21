@@ -797,7 +797,7 @@ function cardHtml(r) {
     ${photo}
     <div class="p-card-body">
       <div class="p-card-top">
-        <span class="p-card-code">${esc(r.code)}${authorChip(r)}</span>
+        <span class="p-card-code">${esc(r.code)}</span>
         ${r.status ? `<span class="p-card-badge ${statusClass(r.status)}">${esc(r.status)}</span>` : ""}
       </div>
       <div class="p-card-name">${esc(r.name)}</div>
@@ -991,7 +991,6 @@ function rowHtml(r) {
   const cls = [r.bucket ? "bucketed" : "", selected.has(r.id) ? "selected" : "", flagged ? "foto-flag" : ""].join(" ").trim();
   return `<tr data-id="${r.id}" class="${cls}"${style}>
     <td class="sel-td"><input type="checkbox" class="row-sel" data-sel-id="${r.id}" ${selected.has(r.id) ? "checked" : ""} /></td>
-    <td class="author-td">${authorChip(r)}</td>
     <td class="code">${esc(r.code)}</td>
     <td class="cell-edit" data-field="name" contenteditable="true">${esc(r.name)}</td>
     <td>${thumb}</td>
