@@ -370,7 +370,7 @@ tr.bucketed td { opacity: .62; }
 .b-ok      { background: #e3f6ec; color: var(--ok); }
 .b-warn    { background: #fdf0dc; color: var(--warn); }
 .b-info    { background: #fff8e1; color: #b28704; }
-.foto-dd   { min-width: 128px; }
+.foto-dd   { width: 100%; min-width: 0; max-width: 100%; }
 
 /* Komentár k fotke — keď je vyplnený, celý riadok načerveno */
 tbody tr.foto-flag td { background: #ffe3e3 !important; }
