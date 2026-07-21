@@ -396,7 +396,7 @@ const KOVANIE = ["", "Zlaté", "Strieborné"];
    takže Sklad aj Fotenie ukazujú to isté a schválenie od Mirky sa prejaví tu. */
 const WF_STAGES = [
   { v: "new",      label: "🆕 Nové zadania" },
-  { v: "progress", label: "📸 Fotí sa" },
+  { v: "progress", label: "📤 Odoslané na fotenie" },
   { v: "approval", label: "⏳ Čaká na schválenie" },
   { v: "done",     label: "✅ Hotové" },
 ];
@@ -404,8 +404,9 @@ function workflowGroup(r) {
   if ((r.bucket || "") === "soldout") return "done";   // staré „Hotové" (galočka) ostáva v Hotové
   if (r.refoto) return "new";                            // treba prefotiť → späť do procesu
   if (r.fotoStage === "published") return "done";
-  if (r.fotoStage === "approval") return "approval";
-  if (r.fotoStage === "sent" || r.fotoStage === "returned") return "progress";
+  // odfotené (returned) aj čaká na schválenie (approval) → čaká na Mirku
+  if (r.fotoStage === "approval" || r.fotoStage === "returned") return "approval";
+  if (r.fotoStage === "sent") return "progress";        // odoslané na fotenie = u fotografa
   return "new";                                          // sklad / Bošany / Partizánske
 }
 

@@ -387,10 +387,10 @@
     <span class="wf-num" id="wfcount-new">—</span>🆕 Nové zadania
   </button>
   <button class="wf-btn wf-progress" id="wf-progress" onclick="filterByWF('progress')">
-    <span class="wf-num" id="wfcount-progress">—</span>📸 Pracuje sa
+    <span class="wf-num" id="wfcount-progress">—</span>📤 Odoslané na fotenie
   </button>
   <button class="wf-btn wf-approval" id="wf-approval" onclick="filterByWF('approval')">
-    <span class="wf-num" id="wfcount-approval">—</span>⏳ Na schválenie
+    <span class="wf-num" id="wfcount-approval">—</span>⏳ Čaká na schválenie
   </button>
   <button class="wf-btn wf-done" id="wf-done" onclick="filterByWF('done')">
     <span class="wf-num" id="wfcount-done">—</span>✅ Hotové
@@ -908,12 +908,13 @@ const STATUS_LABELS  = { stock:'Na sklade', preparing:'Bošany', partizanske:'Pa
 const STATUS_BADGES  = { stock:'badge-stock', preparing:'badge-preparing', partizanske:'badge-partizanske', sent:'badge-sent', returned:'badge-returned', approval:'badge-approval', published:'badge-published' };
 const STATUS_CLASSES = { stock:'', preparing:'status-preparing', partizanske:'status-partizanske', sent:'status-sent', returned:'status-returned', approval:'status-approval', published:'status-published' };
 
-// ─── ETAPY PROCESU (podľa Mirky: nové → pracuje sa → schválenie → hotové) ─────
+// ─── ETAPY PROCESU (nové → odoslané na fotenie → čaká na schválenie → hotové) ──
 function workflowGroup(p) {
   if (p.refoto) return 'new';                    // treba prefotiť → vstupuje do procesu znova
   if (p.fotoStage === 'published') return 'done';
-  if (p.fotoStage === 'approval')  return 'approval';
-  if (p.fotoStage === 'sent' || p.fotoStage === 'returned') return 'progress';
+  // odfotené (returned) aj čaká na schválenie (approval) → čaká na Mirku
+  if (p.fotoStage === 'approval' || p.fotoStage === 'returned') return 'approval';
+  if (p.fotoStage === 'sent') return 'progress'; // odoslané na fotenie = u fotografa
   return 'new';                                  // sklad / Bošany / Partizánske
 }
 const MODEL_PREFIXES = ['MIALIM', 'KTLIM', 'LILLIM', 'FRLIM', 'SMLIM'];
