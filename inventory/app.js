@@ -388,7 +388,9 @@ const LIM_SEED = [
 
 /* Číselníky (fixné hodnoty pre statusy) */
 const PHOTO_STATUSES = ["", "Poslané na fotenie", "Vyfotené"];
-const STATUSES = ["", "Výroba", "Bratislava", "Na ceste do Bratislavy", "Na ceste do Partizánskeho", "Partizánske"];
+const STATUSES = ["", "Bošany", "V presune do BA", "Bratislava", "V presune do PE", "Partizánske"];
+// Prevod starých hodnôt Mesto na nové (aby existujúce produkty sedeli s novým zoznamom)
+const STATUS_MIGRATE = { "Výroba": "Bošany", "Na ceste do Bratislavy": "V presune do BA", "Na ceste do Partizánskeho": "V presune do PE" };
 const KOVANIE = ["", "Zlaté", "Strieborné"];
 
 /* ── Etapy procesu (rovnaké ako vo Fotení) ────────────────────────────────
@@ -445,8 +447,8 @@ function photoStatusClass(v) {
 function statusClass(v) {
   if (v === "Bratislava") return "b-ok";
   if (v === "Partizánske") return "b-blue";
-  if (v === "Výroba") return "b-neutral";
-  if (v && v.startsWith("Na ceste")) return "b-warn";
+  if (v === "Bošany") return "b-neutral";
+  if (v && v.startsWith("V presune")) return "b-warn";
   return "b-empty";
 }
 
@@ -461,6 +463,8 @@ function normalize(rows) {
     };
     // Migrácia: starý jeden "transferNo" -> horný presun (na fotenie)
     if (!o.transferUp && o.transferNo) o.transferUp = o.transferNo;
+    // Migrácia hodnôt Mesto na nové názvy (Výroba→Bošany, Na ceste→V presune)
+    if (STATUS_MIGRATE[o.status]) o.status = STATUS_MIGRATE[o.status];
     return o;
   });
 }

@@ -556,10 +556,10 @@
       <label>Mesto (výroba / poloha)</label>
       <select id="fieldStav">
         <option value="">—</option>
-        <option value="Výroba">Výroba</option>
+        <option value="Bošany">Bošany</option>
+        <option value="V presune do BA">V presune do BA</option>
         <option value="Bratislava">Bratislava</option>
-        <option value="Na ceste do Bratislavy">Na ceste do Bratislavy</option>
-        <option value="Na ceste do Partizánskeho">Na ceste do Partizánskeho</option>
+        <option value="V presune do PE">V presune do PE</option>
         <option value="Partizánske">Partizánske</option>
       </select>
     </div>
@@ -1413,7 +1413,7 @@ async function editField(key, field) {
 function editMesto(cell, key) {
   const p = products[key];
   if (!p || cell.querySelector('select')) return;
-  const opts = ['', 'Výroba', 'Bratislava', 'Na ceste do Bratislavy', 'Na ceste do Partizánskeho', 'Partizánske'];
+  const opts = ['', 'Bošany', 'V presune do BA', 'Bratislava', 'V presune do PE', 'Partizánske'];
   const sel = document.createElement('select');
   sel.innerHTML = opts.map(o => `<option value="${o}"${o === (p.status || '') ? ' selected' : ''}>${o || '—'}</option>`).join('');
   cell.textContent = '';
