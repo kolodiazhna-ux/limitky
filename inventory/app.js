@@ -707,11 +707,13 @@ function getView() {
   let rows = data.filter((r) => {
     // Zobraz iba produkty kategórie tejto stránky.
     if (productCategory(r) !== PAGE_CATEGORY) return false;
-    // Horné záložky = etapy procesu (Kôš má vlastnú záložku).
+    // Horné záložky = etapy procesu; Kôš a Archív majú vlastné tlačidlá.
     if (currentBucket === "trash") {
       if ((r.bucket || "") !== "trash") return false;
+    } else if (currentBucket === "archive") {
+      if (!r.archived || (r.bucket || "") === "trash") return false;
     } else {
-      if ((r.bucket || "") === "trash") return false;
+      if ((r.bucket || "") === "trash" || r.archived) return false;
       if (workflowGroup(r) !== currentBucket) return false;
     }
     // Filter podľa stavu fotenia (počítadlá nad zoznamom)
@@ -773,7 +775,7 @@ function renderFotoStats() {
   const el = $("#fotoStats");
   if (!el) return;
   // Počítadlá = jemnejší rozpad podľa fotoStage, cez všetky aktívne (mimo koša)
-  const rows = data.filter((r) => productCategory(r) === PAGE_CATEGORY && (r.bucket || "") !== "trash");
+  const rows = data.filter((r) => productCategory(r) === PAGE_CATEGORY && (r.bucket || "") !== "trash" && !r.archived);
   const cnt = (s) => rows.filter((r) => (r.fotoStage || "") === s).length;
   const blocks = [
     { v: "all",         label: "Všetky",       icon: "",   n: rows.length,       cls: "fs-all" },
@@ -878,8 +880,8 @@ function plural(n, one, few, many) {
 const activeRows = () => data.filter((r) => !r.bucket && productCategory(r) === PAGE_CATEGORY);
 
 function renderTabs() {
-  // Horné záložky = etapy procesu; Kôš má vlastné tlačidlo v toolbare
-  const catRows = data.filter((r) => productCategory(r) === PAGE_CATEGORY && (r.bucket || "") !== "trash");
+  // Horné záložky = etapy procesu; Kôš a Archív majú vlastné tlačidlá v toolbare
+  const catRows = data.filter((r) => productCategory(r) === PAGE_CATEGORY && (r.bucket || "") !== "trash" && !r.archived);
   $("#viewTabs").innerHTML = WF_STAGES.map((s) => {
     const cnt = catRows.filter((r) => workflowGroup(r) === s.v).length;
     return `<button class="view-tab ${s.v === currentBucket ? "active" : ""}" data-bucket="${s.v}">
@@ -888,6 +890,14 @@ function renderTabs() {
   document.querySelectorAll("#viewTabs [data-bucket]").forEach((t) => {
     t.addEventListener("click", () => { currentBucket = t.dataset.bucket; render(); });
   });
+
+  // Tlačidlo Archív v toolbare
+  const archiveBtn = $("#archiveBtn");
+  if (archiveBtn) {
+    const arCnt = data.filter((r) => r.archived && r.bucket !== "trash" && productCategory(r) === PAGE_CATEGORY).length;
+    archiveBtn.innerHTML = `📁 Archív<span class="cnt">${arCnt}</span>`;
+    archiveBtn.classList.toggle("active", currentBucket === "archive");
+  }
 
   // Tlačidlo Kôš v toolbare (za Postup)
   const trashBtn = $("#trashBtn");
@@ -1216,10 +1226,11 @@ function renderBulkBar() {
       : `<div class="bulk-swatch" style="background:${c}" data-bcolor="${c}"></div>`
   ).join("");
   const inTrash = currentBucket === "trash";
-  bar.innerHTML = inTrash
+  const inArchive = currentBucket === "archive";
+  bar.innerHTML = (inTrash || inArchive)
     ? `
     <span class="cnt">${selected.size} vybrané</span>
-    <button class="bulk-btn" data-bact="active">↩️ Obnoviť</button>
+    <button class="bulk-btn" data-bact="restore">↩️ Obnoviť</button>
     <button class="bulk-btn danger" data-bact="purge">🗑️ Vymazať navždy</button>
     <button class="bulk-btn" data-bact="clear">✕ Zrušiť výber</button>`
     : `
@@ -1227,6 +1238,7 @@ function renderBulkBar() {
     <div class="bulk-swatches">${swatches}</div>
     <button class="bulk-btn" data-bact="soldout">🏷️ Označiť Hotové</button>
     <button class="bulk-btn" data-bact="active">↩️ Zrušiť Hotové</button>
+    <button class="bulk-btn" data-bact="archive">📁 Do archívu</button>
     <button class="bulk-btn danger" data-bact="del">🗑️ Do koša</button>
     <button class="bulk-btn" data-bact="clear">✕ Zrušiť výber</button>`;
   bar.classList.add("show");
@@ -1247,6 +1259,14 @@ function renderBulkBar() {
         applyToSelected((r) => (r.bucket = "trash"), "Presunuté do koša");
         selected.clear(); render(); return;
       }
+      if (act === "archive") {
+        applyToSelected((r) => { r.archived = true; }, "Presunuté do archívu");
+        selected.clear(); render(); return;
+      }
+      if (act === "restore") {
+        applyToSelected((r) => { r.archived = false; r.bucket = ""; }, "Obnovené");
+        selected.clear(); render(); return;
+      }
       const bucket = act === "active" ? "" : act;
       applyToSelected((r) => (r.bucket = bucket), "Presunuté");
       selected.clear(); render();
@@ -1264,12 +1284,16 @@ function openRowMenu(id, anchor) {
       : `<div class="rm-swatch" style="background:${c}" data-color="${c}"></div>`
   ).join("");
   const inTrash = row.bucket === "trash";
+  const inArchive = !!row.archived && row.bucket !== "trash";
   const bucketItems = [];
   if (inTrash) {
-    bucketItems.push(`<button class="rm-item" data-act="active">↩️ Obnoviť z koša</button>`);
+    bucketItems.push(`<button class="rm-item" data-act="restore">↩️ Obnoviť z koša</button>`);
+  } else if (inArchive) {
+    bucketItems.push(`<button class="rm-item" data-act="restore">↩️ Obnoviť z archívu</button>`);
   } else {
     if (row.bucket !== "soldout") bucketItems.push(`<button class="rm-item" data-act="soldout">🏷️ Označiť Hotové</button>`);
     if (row.bucket === "soldout") bucketItems.push(`<button class="rm-item" data-act="active">↩️ Zrušiť Hotové</button>`);
+    bucketItems.push(`<button class="rm-item" data-act="archive">📁 Do archívu</button>`);
   }
 
   menu.innerHTML = `
@@ -1280,7 +1304,7 @@ function openRowMenu(id, anchor) {
     <div class="rm-sep"></div>
     ${photoOf(row) ? `<button class="rm-item danger" data-act="delphoto">🖼️ Vymazať fotku</button>` : ""}
     <button class="rm-item" data-act="edit">✏️ Upraviť</button>
-    <button class="rm-item danger" data-act="del">${inTrash ? "🗑️ Vymazať navždy" : "🗑️ Do koša"}</button>`;
+    <button class="rm-item danger" data-act="del">${(inTrash || inArchive) ? "🗑️ Vymazať navždy" : "🗑️ Do koša"}</button>`;
 
   // pozícia pri tlačidle
   const r = anchor.getBoundingClientRect();
@@ -1299,8 +1323,10 @@ function openRowMenu(id, anchor) {
       else if (act === "delphoto") {
         if (confirm("Naozaj vymazať fotku?")) { setPhoto(id, "").then(() => { render(); toast("Fotka vymazaná"); }); }
       }
-      else if (act === "active") { row.bucket = ""; save(); render(); toast("Vrátené do Pripravuje sa"); }
-      else { row.bucket = act; save(); render(); toast(act === "mail" ? "Presunuté: Odoslané na mail" : "Presunuté: Hotové"); }
+      else if (act === "archive") { row.archived = true; save(); render(); toast("Presunuté do archívu"); }
+      else if (act === "restore") { row.archived = false; row.bucket = ""; save(); render(); toast("Obnovené"); }
+      else if (act === "active") { row.bucket = ""; save(); render(); toast("Zrušené Hotové"); }
+      else { row.bucket = act; save(); render(); toast("Presunuté: Hotové"); }
       closeRowMenu();
     });
   });
@@ -1422,8 +1448,8 @@ function hideTextZoom() {
 function del(id) {
   const row = data.find((r) => r.id === id);
   if (!row) return;
-  if (row.bucket === "trash") {
-    // Už je v koši → natrvalo vymazať
+  if (row.bucket === "trash" || row.archived) {
+    // Už je v koši alebo archíve → natrvalo vymazať (bez stopy)
     if (!confirm(`Natrvalo vymazať „${row.name}"? Túto akciu nie je možné vrátiť.`)) return;
     data = data.filter((r) => r.id !== id);
     setPhoto(id, ""); // vymazať aj fotku z IndexedDB
@@ -1572,6 +1598,7 @@ $("#addBtn")?.addEventListener("click", () => openModal(null));
 $("#exportBtn")?.addEventListener("click", exportCSV);
 $("#backupPhotosBtn")?.addEventListener("click", (e) => backupPhotos(e.currentTarget));
 $("#trashBtn")?.addEventListener("click", () => { currentBucket = "trash"; render(); });
+$("#archiveBtn")?.addEventListener("click", () => { currentBucket = "archive"; render(); });
 $("#cancelBtn")?.addEventListener("click", closeModal);
 $("#saveBtn")?.addEventListener("click", saveModal);
 $("#modalBg")?.addEventListener("click", (e) => { if (e.target.id === "modalBg") closeModal(); });
