@@ -221,6 +221,7 @@ async function refreshFromServer() {
   if (Date.now() - lastLocalChange < 15000) return;         // zmena počas sťahovania
   lastServerJson = j;
   data = normalize(rows);
+  takeSnapshot();
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
   render();
 }
@@ -240,6 +241,7 @@ async function syncFromServer() {
 
   if (serverRows.length > 0) {
     data = normalize(serverRows);
+    takeSnapshot();
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
     const onServer = await pullPhotosFromServer();
     await repairMissingPhotos(onServer); // dorovná fotky, čo sú lokálne ale chýbajú na serveri
@@ -480,6 +482,49 @@ let sortKey = "date";
 let sortDir = -1; // -1 = desc, 1 = asc
 let editingPhoto = "";
 
+/* ---------- Kto naposledy upravil produkt (iniciálky) ----------
+   Pred každým uložením sa porovná aktuálny stav so snímkou z posledného
+   načítania/uloženia — zmenené produkty dostanú iniciálky prihláseného
+   používateľa. Zobrazujú sa ako malý fialový krúžok pri kóde produktu. */
+let editSnapshot = {};
+function currentUserEmail() {
+  try {
+    const t = localStorage.getItem("dr_token");
+    if (t) {
+      const p = JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+      if (p.email) return p.email;
+    }
+  } catch (e) {}
+  return localStorage.getItem("dr_email") || "";
+}
+function userInitials(email) {
+  const parts = String(email || "").split("@")[0].split(/[._\-+]/).filter(Boolean);
+  if (!parts.length) return "?";
+  return (parts.length > 1 ? parts[0][0] + parts[1][0] : parts[0].slice(0, 2)).toUpperCase();
+}
+function snapOne(r) { const { updatedBy, updatedByEmail, updatedAt, ...rest } = r; return JSON.stringify(rest); }
+function takeSnapshot() { editSnapshot = {}; data.forEach((r) => { editSnapshot[r.id] = snapOne(r); }); }
+function stampChanges() {
+  const email = currentUserEmail();
+  if (!email) return;
+  const ini = userInitials(email);
+  const now = new Date().toISOString();
+  data.forEach((r) => {
+    const s = snapOne(r);
+    if (editSnapshot[r.id] !== s) { r.updatedBy = ini; r.updatedByEmail = email; r.updatedAt = now; editSnapshot[r.id] = s; }
+  });
+}
+function fmtDateTime(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? "" : `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+function authorChip(r) {
+  if (!r.updatedBy) return "";
+  const when = r.updatedAt ? " · " + fmtDateTime(r.updatedAt) : "";
+  return `<span class="author-chip" title="Naposledy upravil(a): ${esc(r.updatedByEmail || "")}${when}">${esc(r.updatedBy)}</span>`;
+}
+takeSnapshot();
+
 /* ---------- Storage ---------- */
 // Doplní produkty zo zoznamu, ak tam ešte nie sú.
 // Zhoda podľa kódu; ak kód chýba, podľa názvu.
@@ -564,6 +609,7 @@ function load() {
 function save() {
   try {
     lastLocalChange = Date.now(); // pozastaví auto-obnovu, aby neprepísala čerstvú zmenu
+    stampChanges(); // označí zmenené produkty iniciálkami prihláseného používateľa
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     saveToServer(); // spoločná databáza – synchronizácia na pozadí
     return true;
@@ -702,7 +748,7 @@ function cardHtml(r) {
     ${photo}
     <div class="p-card-body">
       <div class="p-card-top">
-        <span class="p-card-code">${esc(r.code)}</span>
+        <span class="p-card-code">${esc(r.code)}${authorChip(r)}</span>
         ${r.status ? `<span class="p-card-badge ${statusClass(r.status)}">${esc(r.status)}</span>` : ""}
       </div>
       <div class="p-card-name">${esc(r.name)}</div>
@@ -895,7 +941,7 @@ function rowHtml(r) {
   const cls = [r.bucket ? "bucketed" : "", selected.has(r.id) ? "selected" : ""].join(" ").trim();
   return `<tr data-id="${r.id}" class="${cls}"${style}>
     <td class="sel-td"><input type="checkbox" class="row-sel" data-sel-id="${r.id}" ${selected.has(r.id) ? "checked" : ""} /></td>
-    <td class="code">${esc(r.code)}</td>
+    <td class="code">${esc(r.code)}${authorChip(r)}</td>
     <td class="cell-edit" data-field="name" contenteditable="true">${esc(r.name)}</td>
     <td>${thumb}</td>
     <td class="check-td"><input type="checkbox" class="foto-check" data-fotoid="${r.id}" ${r.photoStatus === "Vyfotené" ? "checked" : ""} title="Vyfotené" /></td>

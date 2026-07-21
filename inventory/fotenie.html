@@ -250,6 +250,7 @@
   .photo-delete-inline { margin-top: 8px; width: 100%; border: 1.5px solid var(--red); color: var(--red); background: var(--white); border-radius: 10px; padding: 9px; font-size: 13px; font-weight: 600; cursor: pointer; }
   .photo-delete-inline:active { background: #fbe4e1; }
   .cell-editable { cursor: pointer; }
+  .author-chip { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px; background: var(--purple-light); color: var(--purple-dark); font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-left: 5px; vertical-align: middle; cursor: help; flex-shrink: 0; }
   .link-edit-btn { border: none; background: var(--gray); color: var(--gray3); border-radius: 6px; padding: 3px 8px; cursor: pointer; font-size: 12px; }
   .link-edit-btn:hover { background: var(--purple-light); color: var(--purple-dark); }
   .cell-editable:hover { background: var(--gray); }
@@ -766,6 +767,7 @@ async function loadProducts() {
       photo:    photoMap[p.id] || null,
     };
   });
+  takeSnapshot();
   renderProducts();
   document.getElementById('loaderOverlay').classList.add('hidden');
 }
@@ -782,15 +784,58 @@ function toServerArray() {
   return Object.values(products).map(({ photo, _key, deleted, ...p }) => p);
 }
 
+// ─── KTO NAPOSLEDY UPRAVIL (iniciálky) ────────────────────────────────────────
+// Pred uložením sa porovná stav so snímkou z posledného načítania — zmenené
+// produkty dostanú iniciálky prihláseného používateľa (malý fialový krúžok).
+let editSnapshot = {};
+function currentUserEmail() {
+  try {
+    const t = getToken();
+    if (t) {
+      const p = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      if (p.email) return p.email;
+    }
+  } catch(e) {}
+  return localStorage.getItem('dr_email') || '';
+}
+function userInitials(email) {
+  const parts = String(email || '').split('@')[0].split(/[._\-+]/).filter(Boolean);
+  if (!parts.length) return '?';
+  return (parts.length > 1 ? parts[0][0] + parts[1][0] : parts[0].slice(0, 2)).toUpperCase();
+}
+function snapOne(p) { const { photo, _key, deleted, updatedBy, updatedByEmail, updatedAt, ...rest } = p; return JSON.stringify(rest); }
+function takeSnapshot() { editSnapshot = {}; Object.values(products).forEach(p => { editSnapshot[p.id] = snapOne(p); }); }
+function stampChanges() {
+  const email = currentUserEmail();
+  if (!email) return;
+  const ini = userInitials(email);
+  const now = new Date().toISOString();
+  Object.values(products).forEach(p => {
+    const s = snapOne(p);
+    if (editSnapshot[p.id] !== s) { p.updatedBy = ini; p.updatedByEmail = email; p.updatedAt = now; editSnapshot[p.id] = s; }
+  });
+}
+function fmtDateTime(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? '' : `${d.getDate()}.${d.getMonth()+1}.${d.getFullYear()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function authorChip(p) {
+  if (!p.updatedBy) return '';
+  const when = p.updatedAt ? ' · ' + fmtDateTime(p.updatedAt) : '';
+  return `<span class="author-chip" title="Naposledy upravil(a): ${esc(p.updatedByEmail || '')}${when}">${esc(p.updatedBy)}</span>`;
+}
+
 let lastLocalChange = 0; // pozastaví polling, aby neprepísal čerstvú zmenu
 
 async function pushProducts() {
   if (!isConfigured) return;
   lastLocalChange = Date.now();
+  stampChanges();
   setSyncStatus('syncing', 'Ukladám…');
   try {
     await apiFetch('/api/products', 'PUT', toServerArray());
     setSyncStatus('online', 'Uložené');
+    renderProducts(); // zobrazí čerstvé iniciálky editora
   } catch(e) {
     setSyncStatus('offline', 'Chyba uloženia');
     console.error(e);
@@ -991,7 +1036,7 @@ function renderGrid(list) {
       <div class="card-body">
         ${p.refoto ? `<div class="refoto-banner"><span>🔁</span><span class="refoto-text">PREFOTIŤ${p.refotoNote ? ': ' + esc(p.refotoNote) : ''}</span><button class="refoto-done-btn" onclick="clearRefoto('${p._key}')">✓ Vybavené</button></div>` : ''}
         <div class="card-header">
-          <span class="card-code">${esc(p.code)}</span>
+          <span class="card-code">${esc(p.code)}${authorChip(p)}</span>
           <span class="card-status-badge ${STATUS_BADGES[p.fotoStage]||'badge-stock'}">${STATUS_LABELS[p.fotoStage]||STATUS_LABELS.stock}</span>
         </div>
         <div class="card-name">${esc(p.name)}</div>
@@ -1058,7 +1103,7 @@ function renderTable(list) {
       p.webCz     ? `<a class="card-link" href="${esc(p.webCz)}" target="_blank" rel="noopener">CZ</a>` : '',
     ].filter(Boolean).join(' ');
     tr.innerHTML = `
-      <td><strong>${esc(p.code)}</strong></td>
+      <td><strong>${esc(p.code)}</strong>${authorChip(p)}</td>
       <td>${thumbHTML}</td>
       <td>${esc(p.name)}${p.refoto ? `<span class="refoto-cell-note">🔁 PREFOTIŤ${p.refotoNote ? ': ' + esc(p.refotoNote) : ''} <button class="refoto-done-btn" onclick="clearRefoto('${p._key}')">✓</button></span>` : ''}</td>
       <td>${p.qty||'—'}</td>

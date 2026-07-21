@@ -669,3 +669,12 @@ td.deadline-past { color: var(--danger); font-weight: 700; }
   background: var(--white); border-radius: var(--radius);
   box-shadow: var(--shadow); padding: 32px 28px;
 }
+
+/* Iniciálky posledného editora (malý fialový krúžok pri kóde produktu) */
+.author-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px;
+  background: var(--primary-light); color: var(--primary-dark);
+  font-size: 9px; font-weight: 800; letter-spacing: 0.5px;
+  margin-left: 5px; vertical-align: middle; cursor: help; flex-shrink: 0;
+}
