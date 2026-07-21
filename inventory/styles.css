@@ -369,6 +369,8 @@ tr.bucketed td { opacity: .62; }
 .b-empty   { background: var(--smoke); color: var(--muted); }
 .b-ok      { background: #e3f6ec; color: var(--ok); }
 .b-warn    { background: #fdf0dc; color: var(--warn); }
+.b-info    { background: #fff8e1; color: #b28704; }
+.foto-dd   { min-width: 128px; }
 .b-neutral { background: #efe7f8; color: var(--primary); }
 .b-blue    { background: #e2edfb; color: #2b6cb0; }
 .b-gold    { background: #faf0d6; color: #b8860b; }

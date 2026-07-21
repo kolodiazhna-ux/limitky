@@ -391,6 +391,41 @@ const PHOTO_STATUSES = ["", "Poslané na fotenie", "Vyfotené"];
 const STATUSES = ["", "Výroba", "Bratislava", "Na ceste do Bratislavy", "Na ceste do Partizánskeho", "Partizánske"];
 const KOVANIE = ["", "Zlaté", "Strieborné"];
 
+/* ── Etapy procesu (rovnaké ako vo Fotení) ────────────────────────────────
+   Horné záložky = 4 etapy pipeline. Etapa sa počíta z fotoStage (+refoto),
+   takže Sklad aj Fotenie ukazujú to isté a schválenie od Mirky sa prejaví tu. */
+const WF_STAGES = [
+  { v: "new",      label: "🆕 Nové zadania" },
+  { v: "progress", label: "📸 Fotí sa" },
+  { v: "approval", label: "⏳ Čaká na schválenie" },
+  { v: "done",     label: "✅ Hotové" },
+];
+function workflowGroup(r) {
+  if ((r.bucket || "") === "soldout") return "done";   // staré „Hotové" (galočka) ostáva v Hotové
+  if (r.refoto) return "new";                            // treba prefotiť → späť do procesu
+  if (r.fotoStage === "published") return "done";
+  if (r.fotoStage === "approval") return "approval";
+  if (r.fotoStage === "sent" || r.fotoStage === "returned") return "progress";
+  return "new";                                          // sklad / Bošany / Partizánske
+}
+
+/* Stĺpec „Stav fotenia" — rýchly výber koncového stavu.
+   Píše sa priamo do fotoStage → synchronizované s Fotením a s etapami vyššie. */
+const FOTO_DD = [
+  { v: "",          label: "—" },
+  { v: "returned",  label: "odfotené" },
+  { v: "approval",  label: "čaká na schválenie" },
+  { v: "published", label: "schválené" },
+];
+const FOTO_DD_VALUES = ["returned", "approval", "published"];
+function fotoDdValue(r) { return FOTO_DD_VALUES.includes(r.fotoStage) ? r.fotoStage : ""; }
+function fotoDdClass(v) { return v === "published" ? "b-ok" : v === "approval" ? "b-info" : v === "returned" ? "b-warn" : "b-empty"; }
+function fotoDdSelect(r) {
+  const cur = fotoDdValue(r);
+  const opts = FOTO_DD.map((o) => `<option value="${o.v}" ${o.v === cur ? "selected" : ""}>${o.label}</option>`).join("");
+  return `<select class="badge-select foto-dd ${fotoDdClass(cur)}" data-fotodd="${r.id}" title="Stav fotenia">${opts}</select>`;
+}
+
 function kovanieClass(v) {
   return v === "Zlaté" ? "b-gold" : v === "Strieborné" ? "b-silver" : "b-empty";
 }
@@ -461,7 +496,7 @@ const ROW_COLORS = ["", "#efe7f8", "#e3f6ec", "#fdf0dc", "#e2edfb", "#fbe4f0", "
 // Nastavuje sa cez <body data-category="…">.
 const PAGE_CATEGORY = document.body.dataset.category || "limitka";
 
-let currentBucket = "";
+let currentBucket = "new"; // aktívna etapa procesu (alebo "trash" pre Kôš)
 let selected = new Set();
 
 // Filter podľa stavu fotenia (klik na počítadlo; "all" = bez filtra)
@@ -659,9 +694,13 @@ function getView() {
   let rows = data.filter((r) => {
     // Zobraz iba produkty kategórie tejto stránky.
     if (productCategory(r) !== PAGE_CATEGORY) return false;
-    // Každý priečinok (bucket) zobrazuje len svoje položky:
-    //   "" = Pripravuje sa (aktívne),  "soldout" = Hotové,  "mail" = Na mail
-    if ((r.bucket || "") !== currentBucket) return false;
+    // Horné záložky = etapy procesu (Kôš má vlastnú záložku).
+    if (currentBucket === "trash") {
+      if ((r.bucket || "") !== "trash") return false;
+    } else {
+      if ((r.bucket || "") === "trash") return false;
+      if (workflowGroup(r) !== currentBucket) return false;
+    }
     // Filter podľa stavu fotenia (počítadlá nad zoznamom)
     if (fotoFilter !== "all" && (r.fotoStage || "") !== fotoFilter) return false;
     if (q) {
@@ -715,7 +754,8 @@ function render() {
 function renderFotoStats() {
   const el = $("#fotoStats");
   if (!el) return;
-  const rows = data.filter((r) => productCategory(r) === PAGE_CATEGORY && (r.bucket || "") === currentBucket);
+  // Počítadlá = jemnejší rozpad podľa fotoStage, cez všetky aktívne (mimo koša)
+  const rows = data.filter((r) => productCategory(r) === PAGE_CATEGORY && (r.bucket || "") !== "trash");
   const cnt = (s) => rows.filter((r) => (r.fotoStage || "") === s).length;
   const blocks = [
     { v: "all",         label: "Všetky",       icon: "",   n: rows.length,       cls: "fs-all" },
@@ -790,7 +830,7 @@ function bindCardEvents() {
       row.bucket = c.checked ? "soldout" : "";
       save();
       render();
-      toast(c.checked ? "Presunuté do Hotové" : "Vrátené do Pripravuje sa");
+      toast(c.checked ? "Presunuté do Hotové" : "Zrušené Hotové");
     });
   });
 }
@@ -820,12 +860,12 @@ function plural(n, one, few, many) {
 const activeRows = () => data.filter((r) => !r.bucket && productCategory(r) === PAGE_CATEGORY);
 
 function renderTabs() {
-  // Kôš (trash) sa nezobrazuje medzi záložkami — má vlastné tlačidlo v toolbare
-  $("#viewTabs").innerHTML = BUCKETS.filter((b) => b.v !== "trash").map((b) => {
-    // Každý priečinok počíta len produkty tejto kategórie
-    const cnt = data.filter((r) => (r.bucket || "") === b.v && productCategory(r) === PAGE_CATEGORY).length;
-    return `<button class="view-tab ${b.v === currentBucket ? "active" : ""}" data-bucket="${b.v}">
-      ${b.label}<span class="cnt">${cnt}</span></button>`;
+  // Horné záložky = etapy procesu; Kôš má vlastné tlačidlo v toolbare
+  const catRows = data.filter((r) => productCategory(r) === PAGE_CATEGORY && (r.bucket || "") !== "trash");
+  $("#viewTabs").innerHTML = WF_STAGES.map((s) => {
+    const cnt = catRows.filter((r) => workflowGroup(r) === s.v).length;
+    return `<button class="view-tab ${s.v === currentBucket ? "active" : ""}" data-bucket="${s.v}">
+      ${s.label}<span class="cnt">${cnt}</span></button>`;
   }).join("");
   document.querySelectorAll("#viewTabs [data-bucket]").forEach((t) => {
     t.addEventListener("click", () => { currentBucket = t.dataset.bucket; render(); });
@@ -944,7 +984,7 @@ function rowHtml(r) {
     <td class="code">${esc(r.code)}${authorChip(r)}</td>
     <td class="cell-edit" data-field="name" contenteditable="true">${esc(r.name)}</td>
     <td>${thumb}</td>
-    <td class="check-td"><input type="checkbox" class="foto-check" data-fotoid="${r.id}" ${r.photoStatus === "Vyfotené" ? "checked" : ""} title="Vyfotené" /></td>
+    <td>${fotoDdSelect(r)}</td>
     <td>${linkCell(r.id, "photoLink", r.photoLink)}</td>
     <td class="cell-edit note-cell foto-note-cell" data-field="fotoNote" contenteditable="true">${esc(r.fotoNote)}</td>
     <td class="qty-cell">
@@ -1013,12 +1053,15 @@ function bindRowEvents() {
       toast("Uložené");
     });
   });
-  // Stav fotenia: jednoduchá galočka (Vyfotené / nič)
-  document.querySelectorAll(".foto-check").forEach((c) => {
-    c.addEventListener("change", () => {
-      const row = data.find((r) => r.id === +c.dataset.fotoid);
-      row.photoStatus = c.checked ? "Vyfotené" : "";
+  // Stav fotenia: výber koncového stavu (píše sa do fotoStage → posunie etapu)
+  document.querySelectorAll(".foto-dd").forEach((sel) => {
+    sel.addEventListener("change", () => {
+      const row = data.find((r) => r.id === +sel.dataset.fotodd);
+      row.fotoStage = sel.value;                       // "", returned, approval, published
+      row.photoStatus = sel.value ? "Vyfotené" : "";   // synchronizácia so starým poľom
+      if (sel.value) row.refoto = false;               // výber stavu ruší príznak „prefotiť"
       save();
+      render();                                        // produkt sa presunie do správnej etapy
       toast("Uložené");
     });
   });
@@ -1029,7 +1072,7 @@ function bindRowEvents() {
       row.bucket = c.checked ? "soldout" : "";
       save();
       render();
-      toast(c.checked ? "Presunuté do Hotové" : "Vrátené do Pripravuje sa");
+      toast(c.checked ? "Presunuté do Hotové" : "Zrušené Hotové");
     });
   });
   // Kovanie: klik na farebný bod = vybrať, opätovný klik = zrušiť
@@ -1166,9 +1209,8 @@ function renderBulkBar() {
     : `
     <span class="cnt">${selected.size} vybrané</span>
     <div class="bulk-swatches">${swatches}</div>
-    <button class="bulk-btn" data-bact="mail">✉️ Na mail</button>
-    <button class="bulk-btn" data-bact="soldout">🏷️ Hotové</button>
-    <button class="bulk-btn" data-bact="active">↩️ Pripravuje sa</button>
+    <button class="bulk-btn" data-bact="soldout">🏷️ Označiť Hotové</button>
+    <button class="bulk-btn" data-bact="active">↩️ Zrušiť Hotové</button>
     <button class="bulk-btn danger" data-bact="del">🗑️ Do koša</button>
     <button class="bulk-btn" data-bact="clear">✕ Zrušiť výber</button>`;
   bar.classList.add("show");
@@ -1210,9 +1252,8 @@ function openRowMenu(id, anchor) {
   if (inTrash) {
     bucketItems.push(`<button class="rm-item" data-act="active">↩️ Obnoviť z koša</button>`);
   } else {
-    if (row.bucket !== "mail") bucketItems.push(`<button class="rm-item" data-act="mail">✉️ Odoslané na mail</button>`);
-    if (row.bucket !== "soldout") bucketItems.push(`<button class="rm-item" data-act="soldout">🏷️ Hotové</button>`);
-    if (row.bucket) bucketItems.push(`<button class="rm-item" data-act="active">↩️ Vrátiť do Pripravuje sa</button>`);
+    if (row.bucket !== "soldout") bucketItems.push(`<button class="rm-item" data-act="soldout">🏷️ Označiť Hotové</button>`);
+    if (row.bucket === "soldout") bucketItems.push(`<button class="rm-item" data-act="active">↩️ Zrušiť Hotové</button>`);
   }
 
   menu.innerHTML = `
@@ -1400,7 +1441,7 @@ function openModal(id) {
   $("#f-kovanie").value = row ? row.kovanie : "";
   $("#f-transferUp").value = row ? row.transferUp : "";
   $("#f-transferDown").value = row ? row.transferDown : "";
-  $("#f-photoStatus").value = row ? row.photoStatus : "";
+  $("#f-photoStatus").value = row ? fotoDdValue(row) : "";
   $("#f-photoLink").value = row ? row.photoLink : "";
   $("#f-webSk").value = row ? row.webSk : "";
   $("#f-webCz").value = row ? row.webCz : "";
@@ -1414,6 +1455,12 @@ function closeModal() { $("#modalBg").classList.remove("open"); }
 
 async function saveModal() {
   const id = $("#f-id").value;
+  // „Stav fotenia" v okne píše priamo do fotoStage; „—" nezmaže polohu (Bošany…),
+  // zruší len koncový stav (odfotené/čaká/schválené).
+  const fotoDdSel = $("#f-photoStatus").value;
+  const prevRow   = id ? data.find((r) => r.id === +id) : null;
+  const prevStage = prevRow ? (prevRow.fotoStage || "") : "";
+  const newStage  = fotoDdSel ? fotoDdSel : (FOTO_DD_VALUES.includes(prevStage) ? "" : prevStage);
   const rec = {
     category: $("#f-category").value,
     code: $("#f-code").value.trim(),
@@ -1430,7 +1477,8 @@ async function saveModal() {
     kovanie: $("#f-kovanie").value,
     transferUp: $("#f-transferUp").value.trim(),
     transferDown: $("#f-transferDown").value.trim(),
-    photoStatus: $("#f-photoStatus").value,
+    fotoStage: newStage,
+    photoStatus: newStage ? "Vyfotené" : "",
     photoLink: $("#f-photoLink").value.trim(),
     webSk: $("#f-webSk").value.trim(),
     webCz: $("#f-webCz").value.trim(),
@@ -1446,6 +1494,7 @@ async function saveModal() {
     savedId = nextId();
     data.push({ id: savedId, ...rec });
   }
+  if (newStage) { const rr = data.find((r) => r.id === savedId); if (rr) rr.refoto = false; }
   if (!save()) return;
   // Fotka ide do IndexedDB (nie do localStorage)
   await setPhoto(savedId, editingPhoto || "");
@@ -1473,7 +1522,7 @@ function fillModalSelects() {
   const opt = (o) => `<option value="${esc(o)}">${o || "—"}</option>`;
   $("#f-status").innerHTML = STATUSES.map(opt).join("");
   $("#f-kovanie").innerHTML = KOVANIE.map(opt).join("");
-  $("#f-photoStatus").innerHTML = PHOTO_STATUSES.map(opt).join("");
+  $("#f-photoStatus").innerHTML = FOTO_DD.map((o) => `<option value="${esc(o.v)}">${o.label}</option>`).join("");
 }
 
 document.querySelectorAll("thead th[data-sort]").forEach((th) => {
