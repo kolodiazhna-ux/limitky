@@ -371,6 +371,12 @@ tr.bucketed td { opacity: .62; }
 .b-warn    { background: #fdf0dc; color: var(--warn); }
 .b-info    { background: #fff8e1; color: #b28704; }
 .foto-dd   { min-width: 128px; }
+
+/* Komentár k fotke — keď je vyplnený, celý riadok načerveno */
+tbody tr.foto-flag td { background: #ffe3e3 !important; }
+tbody tr.foto-flag td:first-child { box-shadow: inset 3px 0 0 0 var(--danger); }
+td.foto-comment-cell { min-width: 160px; color: var(--danger); font-weight: 600; }
+td.foto-comment-cell:empty::before { content: attr(data-ph); color: var(--muted); font-weight: 400; font-style: italic; }
 .b-neutral { background: #efe7f8; color: var(--primary); }
 .b-blue    { background: #e2edfb; color: #2b6cb0; }
 .b-gold    { background: #faf0d6; color: #b8860b; }

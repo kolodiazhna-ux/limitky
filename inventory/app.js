@@ -978,7 +978,8 @@ function rowHtml(r) {
     ? `<img class="thumb" src="${_photo}" data-photo="${r.id}" alt="" />`
     : `<div class="thumb empty" data-photo="${r.id}">foto</div>`;
   const style = r.rowColor ? ` style="--row-bg:${r.rowColor}"` : "";
-  const cls = [r.bucket ? "bucketed" : "", selected.has(r.id) ? "selected" : ""].join(" ").trim();
+  const flagged = (r.refotoNote && r.refotoNote.trim()) || r.refoto; // komentár k fotke → červený riadok
+  const cls = [r.bucket ? "bucketed" : "", selected.has(r.id) ? "selected" : "", flagged ? "foto-flag" : ""].join(" ").trim();
   return `<tr data-id="${r.id}" class="${cls}"${style}>
     <td class="sel-td"><input type="checkbox" class="row-sel" data-sel-id="${r.id}" ${selected.has(r.id) ? "checked" : ""} /></td>
     <td class="code">${esc(r.code)}${authorChip(r)}</td>
@@ -1003,13 +1004,13 @@ function rowHtml(r) {
     <td>${linkCell(r.id, "webSk", r.webSk)}</td>
     <td>${linkCell(r.id, "webCz", r.webCz)}</td>
     <td class="date-cell" data-datefield="date" data-id="${r.id}" title="Kliknite pre zmenu dátumu">${fmtDate(r.date)}</td>
-    <td class="date-cell deadline-cell${r.deadline && r.deadline < new Date().toISOString().slice(0,10) ? ' deadline-past' : r.deadline ? ' deadline-set' : ''}" data-datefield="deadline" data-id="${r.id}" title="Kliknite pre zmenu deadlinu">${r.deadline ? fmtDate(r.deadline) : ""}</td>
     <td class="cell-edit desc-cell" data-field="desc" contenteditable="true">${esc(r.desc)}</td>
     <td class="price cell-edit" data-field="price" contenteditable="true">${esc(r.price)}</td>
     <td class="cell-edit note-cell" data-field="note" contenteditable="true" data-note="${esc(r.note)}">${esc(r.note)}</td>
     <td class="row-actions">
       <button class="icon-btn" data-menu="${r.id}" title="Akcie">&#8943;</button>
     </td>
+    <td class="cell-edit note-cell foto-comment-cell" data-field="refotoNote" contenteditable="true" data-ph="komentár k fotke…" title="Komentár k fotke — zvýrazní riadok načerveno">${esc(r.refotoNote)}</td>
   </tr>`;
 }
 
@@ -1033,9 +1034,11 @@ function bindRowEvents() {
       if (row[field] === val) return;
       row[field] = val;
       if (field === "note") cell.dataset.note = val; // udržať tooltip aktuálny
+      // Komentár k fotke: prítomný text → červený riadok + príznak „prefotiť" (synced s Fotením)
+      if (field === "refotoNote") row.refoto = !!val;
       save();
       toast("Uložené");
-      if (field === "photoLink") render(); // obnoviť tlačidlo „otvoriť"
+      if (field === "photoLink" || field === "refotoNote") render(); // prefarbiť riadok / obnoviť odkaz
     });
     cell.addEventListener("keydown", (e) => {
       if (e.key === "Enter") { e.preventDefault(); cell.blur(); }
