@@ -996,7 +996,6 @@ function rowHtml(r) {
     <td>${thumb}</td>
     <td>${fotoDdSelect(r)}</td>
     <td>${linkCell(r.id, "photoLink", r.photoLink)}</td>
-    <td class="cell-edit note-cell foto-note-cell" data-field="fotoNote" contenteditable="true">${esc(r.fotoNote)}</td>
     <td class="qty-cell">
       <button class="qty-step" data-step="-1" data-id="${r.id}" title="−1">−</button>
       <span class="qty-badge ${qtyClass(r.qty)}" data-qtyedit="${r.id}" contenteditable="true" inputmode="numeric">${r.qty}</span>
@@ -1580,6 +1579,50 @@ $("#photoRemoveBtn")?.addEventListener("click", () => {
 
 fillModalSelects();
 render();
+
+/* ── Manuálna šírka stĺpcov (ťahaním hranice v hlavičke, ako v Exceli) ──
+   Šírky sa ukladajú do prehliadača (localStorage) samostatne pre každú stránku. */
+function initColumnResize() {
+  const table = document.querySelector(".table-wrap table");
+  if (!table) return;
+  const cols = table.querySelectorAll("colgroup col");
+  const ths  = table.querySelectorAll("thead th");
+  const KEY  = "dr_col_widths_" + PAGE_CATEGORY;
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) {}
+  // ak sa zmenil počet stĺpcov, staré šírky zahodíme (nesadli by na správne stĺpce)
+  if (saved.__n !== ths.length) saved = {};
+  ths.forEach((th, i) => {
+    if (!cols[i]) return;
+    if (saved[i]) cols[i].style.width = saved[i];
+    if (th.querySelector(".col-resizer")) return;
+    const rz = document.createElement("div");
+    rz.className = "col-resizer";
+    rz.title = "Potiahnutím zmeníte šírku stĺpca";
+    th.appendChild(rz);
+    rz.addEventListener("click", (e) => e.stopPropagation()); // neradiť pri kliknutí na hranicu
+    rz.addEventListener("mousedown", (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const startX = e.clientX;
+      const startW = cols[i].getBoundingClientRect().width;
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      const onMove = (ev) => { cols[i].style.width = Math.max(28, startW + ev.clientX - startX) + "px"; };
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        let s = {}; try { s = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) {}
+        s[i] = cols[i].style.width; s.__n = ths.length;
+        try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {}
+      };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    });
+  });
+}
+initColumnResize();
 // Načítať fotky z IndexedDB a presunúť staré fotky z localStorage
 (async () => {
   await loadAllPhotos();
