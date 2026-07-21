@@ -723,6 +723,11 @@ function getView() {
     return true;
   });
   rows.sort((a, b) => {
+    // Produkty bez dátumu uverejnenia idú vždy navrch (treba im ešte doplniť dátum).
+    if (sortKey === "date") {
+      const ae = !String(a.date || "").trim(), be = !String(b.date || "").trim();
+      if (ae !== be) return ae ? -1 : 1;
+    }
     let av = a[sortKey], bv = b[sortKey];
     if (sortKey === "qty" || sortKey === "price") { av = +av; bv = +bv; }
     else { av = String(av).toLowerCase(); bv = String(bv).toLowerCase(); }
