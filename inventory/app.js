@@ -1007,10 +1007,6 @@ function rowHtml(r) {
     <td>${kovanieCell(r.id, r.kovanie)}</td>
     <td>${selectHtml("status", r.status, STATUSES, statusClass)}</td>
     <td class="check-td"><input type="checkbox" class="hotove-check" data-hotoveid="${r.id}" ${r.bucket === "soldout" ? "checked" : ""} title="Hotové — presunúť do priečinka Hotové" /></td>
-    <td class="transfer-cell">
-      <div class="cell-edit tr-line" data-field="transferUp" contenteditable="true" data-ph="na fotenie" title="Presun na fotenie">${esc(r.transferUp)}</div>
-      <div class="cell-edit tr-line" data-field="transferDown" contenteditable="true" data-ph="na sklad" title="Presun na sklad z fotenia">${esc(r.transferDown)}</div>
-    </td>
     <td>${linkCell(r.id, "webSk", r.webSk)}</td>
     <td>${linkCell(r.id, "webCz", r.webCz)}</td>
     <td class="date-cell" data-datefield="date" data-id="${r.id}" title="Kliknite pre zmenu dátumu">${fmtDate(r.date)}</td>
