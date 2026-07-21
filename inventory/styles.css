@@ -321,6 +321,9 @@ tbody tr.selected[style*="--row-bg"] td { background: var(--row-bg); }
 
 /* row state */
 tr.bucketed td { opacity: .62; }
+/* Riadky označené ako Hotové (galočka) — jemný sivý odtieň, aby boli nenápadne odlíšené */
+tbody tr.hotove-row:not([style*="--row-bg"]) td { background: #f0eff4; }
+tbody tr.hotove-row:not([style*="--row-bg"]):hover td { background: #e9e7ef; }
 
 /* row actions menu */
 .row-menu {

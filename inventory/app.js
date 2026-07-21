@@ -1007,7 +1007,8 @@ function rowHtml(r) {
     : `<div class="thumb empty" data-photo="${r.id}">foto</div>`;
   const style = r.rowColor ? ` style="--row-bg:${r.rowColor}"` : "";
   const flagged = (r.refotoNote && r.refotoNote.trim()) || r.refoto; // komentár k fotke → červený riadok
-  const cls = [r.bucket ? "bucketed" : "", selected.has(r.id) ? "selected" : "", flagged ? "foto-flag" : ""].join(" ").trim();
+  const bucketCls = r.bucket === "soldout" ? "hotove-row" : (r.bucket === "trash" ? "bucketed" : "");
+  const cls = [bucketCls, selected.has(r.id) ? "selected" : "", flagged ? "foto-flag" : ""].join(" ").trim();
   return `<tr data-id="${r.id}" class="${cls}"${style}>
     <td class="sel-td"><input type="checkbox" class="row-sel" data-sel-id="${r.id}" ${selected.has(r.id) ? "checked" : ""} /></td>
     <td class="code">${esc(r.code)}</td>
