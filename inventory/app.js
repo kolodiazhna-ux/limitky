@@ -849,7 +849,7 @@ function renderFooter(rows) {
   if (!rows.length) { tfoot.innerHTML = ""; return; }
   const pieces = rows.reduce((s, r) => s + (+r.qty || 0), 0);
   tfoot.innerHTML = `<tr class="sum-row">
-    <td colspan="6" class="sum-label">Spolu v zozname</td>
+    <td colspan="7" class="sum-label">Spolu v zozname</td>
     <td class="sum-pieces">${pieces}</td>
     <td colspan="11" class="sum-note">${rows.length} ${plural(rows.length, "produkt", "produkty", "produktov")} · ${pieces} ${plural(pieces, "kus", "kusy", "kusov")}</td>
   </tr>`;
@@ -989,7 +989,8 @@ function rowHtml(r) {
   const cls = [r.bucket ? "bucketed" : "", selected.has(r.id) ? "selected" : "", flagged ? "foto-flag" : ""].join(" ").trim();
   return `<tr data-id="${r.id}" class="${cls}"${style}>
     <td class="sel-td"><input type="checkbox" class="row-sel" data-sel-id="${r.id}" ${selected.has(r.id) ? "checked" : ""} /></td>
-    <td class="code">${esc(r.code)}${authorChip(r)}</td>
+    <td class="author-td">${authorChip(r)}</td>
+    <td class="code">${esc(r.code)}</td>
     <td class="cell-edit" data-field="name" contenteditable="true">${esc(r.name)}</td>
     <td>${thumb}</td>
     <td>${fotoDdSelect(r)}</td>
