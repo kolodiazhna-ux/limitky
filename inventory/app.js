@@ -396,7 +396,7 @@ const KOVANIE = ["", "Zlaté", "Strieborné"];
    takže Sklad aj Fotenie ukazujú to isté a schválenie od Mirky sa prejaví tu. */
 const WF_STAGES = [
   { v: "new",      label: "🆕 Nové zadania" },
-  { v: "progress", label: "📤 Odoslané na fotenie" },
+  { v: "progress", label: "📸 Fotí sa" },
   { v: "approval", label: "⏳ Čaká na schválenie" },
   { v: "done",     label: "✅ Hotové" },
 ];
@@ -414,14 +414,15 @@ function workflowGroup(r) {
    Píše sa priamo do fotoStage → synchronizované s Fotením a s etapami vyššie. */
 const FOTO_DD = [
   { v: "",          label: "—" },
-  { v: "sent",      label: "odoslané na fotenie" },
-  { v: "returned",  label: "odfotené" },
+  { v: "sent",      label: "fotí sa" },
   { v: "approval",  label: "čaká na schválenie" },
   { v: "published", label: "schválené" },
 ];
-const FOTO_DD_VALUES = ["sent", "returned", "approval", "published"];
-function fotoDdValue(r) { return FOTO_DD_VALUES.includes(r.fotoStage) ? r.fotoStage : ""; }
-function fotoDdClass(v) { return v === "published" ? "b-ok" : v === "approval" ? "b-info" : v === "returned" ? "b-warn" : v === "sent" ? "b-blue" : "b-empty"; }
+const FOTO_DD_VALUES = ["sent", "approval", "published"];
+// 'returned' (staré „odfotené") sa v zozname nezobrazuje, ale ak ho niekto nastaví
+// vo Fotení (tlačidlo Vrátené), zobrazí sa ako čaká na schválenie.
+function fotoDdValue(r) { return r.fotoStage === "returned" ? "approval" : (FOTO_DD_VALUES.includes(r.fotoStage) ? r.fotoStage : ""); }
+function fotoDdClass(v) { return v === "published" ? "b-ok" : v === "approval" ? "b-info" : v === "sent" ? "b-warn" : "b-empty"; }
 // Etapa fotenia → staré pole photoStatus (kvôli kompatibilite s inými pohľadmi)
 function photoStatusForStage(stage) {
   if (stage === "sent") return "Poslané na fotenie";
