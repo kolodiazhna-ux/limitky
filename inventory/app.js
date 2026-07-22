@@ -716,8 +716,8 @@ function getView() {
       if ((r.bucket || "") === "trash" || r.archived) return false;
       if (workflowGroup(r) !== currentBucket) return false;
     }
-    // Filter podľa stavu fotenia (počítadlá nad zoznamom)
-    if (fotoFilter !== "all" && (r.fotoStage || "") !== fotoFilter) return false;
+    // Filter podľa miesta (počítadlá nad zoznamom = stĺpec Mesto)
+    if (fotoFilter !== "all" && (r.status || "") !== fotoFilter) return false;
     if (q) {
       const hay = `${r.code} ${r.name} ${r.desc} ${r.note} ${r.fotoNote} ${r.place}`.toLowerCase();
       if (!hay.includes(q)) return false;
@@ -774,16 +774,16 @@ function render() {
 function renderFotoStats() {
   const el = $("#fotoStats");
   if (!el) return;
-  // Počítadlá = jemnejší rozpad podľa fotoStage, cez všetky aktívne (mimo koša)
+  // Počítadlá = rozpad podľa miesta (stĺpec Mesto), cez všetky aktívne (mimo koša/archívu)
   const rows = data.filter((r) => productCategory(r) === PAGE_CATEGORY && (r.bucket || "") !== "trash" && !r.archived);
-  const cnt = (s) => rows.filter((r) => (r.fotoStage || "") === s).length;
+  const cnt = (s) => rows.filter((r) => (r.status || "") === s).length;
   const blocks = [
-    { v: "all",         label: "Všetky",       icon: "",   n: rows.length,       cls: "fs-all" },
-    { v: "preparing",   label: "Bošany",       icon: "🏘️", n: cnt("preparing"),   cls: "fs-preparing" },
-    { v: "partizanske", label: "Partizánske",  icon: "🏙️", n: cnt("partizanske"), cls: "fs-partizanske" },
-    { v: "sent",        label: "U fotografa",  icon: "📤", n: cnt("sent"),        cls: "fs-sent" },
-    { v: "returned",    label: "Vrátené",      icon: "📥", n: cnt("returned"),    cls: "fs-returned" },
-    { v: "published",   label: "Na webe",      icon: "✅", n: cnt("published"),   cls: "fs-published" },
+    { v: "all",              label: "Všetky",          icon: "",   n: rows.length,             cls: "fs-all" },
+    { v: "Partizánske",      label: "Partizánske",     icon: "🏙️", n: cnt("Partizánske"),      cls: "fs-partizanske" },
+    { v: "Bošany",           label: "Bošany",          icon: "🏘️", n: cnt("Bošany"),           cls: "fs-preparing" },
+    { v: "V presune do BA",  label: "V presune do BA", icon: "🚚", n: cnt("V presune do BA"),  cls: "fs-sent" },
+    { v: "V presune do PE",  label: "V presune do PE", icon: "🚚", n: cnt("V presune do PE"),  cls: "fs-returned" },
+    { v: "Bratislava",       label: "Bratislava",      icon: "🏢", n: cnt("Bratislava"),       cls: "fs-published" },
   ];
   el.innerHTML = blocks.map((b) => `
     <button class="foto-stat ${b.cls}${fotoFilter === b.v ? " active" : ""}" data-fstat="${b.v}">
