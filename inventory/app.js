@@ -1028,9 +1028,9 @@ function rowHtml(r) {
     <td>${linkCell(r.id, "webSk", r.webSk)}</td>
     <td>${linkCell(r.id, "webCz", r.webCz)}</td>
     <td class="date-cell" data-datefield="date" data-id="${r.id}" title="Kliknite pre zmenu dátumu">${fmtDate(r.date)}</td>
-    <td class="cell-edit desc-cell" data-field="desc" contenteditable="true">${esc(r.desc)}</td>
+    <td class="cell-edit desc-cell" data-field="desc" contenteditable="true"><div class="clampbox">${esc(r.desc)}</div></td>
     <td class="price cell-edit" data-field="price" contenteditable="true">${esc(r.price)}</td>
-    <td class="cell-edit note-cell" data-field="note" contenteditable="true" data-note="${esc(r.note)}">${esc(r.note)}</td>
+    <td class="cell-edit note-cell" data-field="note" contenteditable="true" data-note="${esc(r.note)}"><div class="clampbox">${esc(r.note)}</div></td>
     <td class="row-actions">
       <button class="icon-btn" data-menu="${r.id}" title="Akcie">&#8943;</button>
     </td>
@@ -1421,8 +1421,9 @@ function showTextZoom(cell, e) {
   if (cell.isContentEditable && document.activeElement === cell) return;
   const txt = (cell.textContent || "").trim();
   if (!txt) return;
-  // ak sa celý text zmestí do bunky (nie je orezaný), náhľad netreba
-  if (cell.scrollHeight <= cell.clientHeight + 1 && cell.scrollWidth <= cell.clientWidth + 1) return;
+  // ak sa celý text zmestí (nie je orezaný), náhľad netreba — meriame vnútorný divok
+  const clip = cell.querySelector(".clampbox") || cell;
+  if (clip.scrollHeight <= clip.clientHeight + 1 && clip.scrollWidth <= clip.clientWidth + 1) return;
   if (!textZoomEl) {
     textZoomEl = document.createElement("div");
     textZoomEl.className = "text-zoom";

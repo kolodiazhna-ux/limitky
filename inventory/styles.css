@@ -250,9 +250,9 @@ tbody tr.selected[style*="--row-bg"] td { background: var(--row-bg); }
 .transfer-cell .tr-line:focus { border-style: solid; }
 .transfer-cell .tr-line:empty::before { content: attr(data-ph); color: var(--muted); font-style: italic; }
 
-/* Poznámka & Popis — plná šírka bunky, ale výška orezaná na 2 riadky
-   (dlhší text sa skryje; celý sa ukáže po najazdení myšou v náhľade). */
-.note-cell, .desc-cell {
+/* Poznámka & Popis — text vo vnútornom divku, orezaný presne na 2 riadky
+   (line-clamp funguje čisto len na bloku, nie na <td>). Plný text v náhľade po najazdení. */
+.note-cell .clampbox, .desc-cell .clampbox {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -260,8 +260,7 @@ tbody tr.selected[style*="--row-bg"] td { background: var(--row-bg); }
   overflow-wrap: anywhere;
   word-break: break-word;
 }
-.note-cell:focus, .desc-cell:focus {
-  display: block;
+.note-cell:focus .clampbox, .desc-cell:focus .clampbox {
   -webkit-line-clamp: unset;
   overflow: visible;
 }
