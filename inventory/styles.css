@@ -101,6 +101,9 @@ select.filter {
 .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
 .btn-ghost { background: var(--smoke); color: var(--primary-dark); }
 .btn-ghost:hover { background: var(--primary-light); }
+/* Aktívna pilulka (aktuálna stránka / Archív / Kôš) — zvýraznená fialovo */
+.btn-ghost.active { background: var(--primary); color: #fff; }
+.btn-ghost.active:hover { background: var(--primary-dark); }
 .btn-sm { padding: 7px 12px; font-size: 13px; }
 
 /* ---------- Add bar (výber kategórie pri pridávaní) ---------- */
