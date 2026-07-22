@@ -20,6 +20,11 @@
 
 * { box-sizing: border-box; }
 
+html {
+  /* vždy rezervuj miesto pre zvislý posuvník → šírka stránky sa nemení
+     medzi stránkami s malým a veľkým počtom produktov (lišta „neposkakuje") */
+  overflow-y: scroll;
+}
 html, body {
   margin: 0;
   padding: 0;
