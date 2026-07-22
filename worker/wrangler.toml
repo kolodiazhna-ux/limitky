@@ -27,6 +27,12 @@ database_id  = "43f6c13e-0ad0-4e43-b32b-dd36f942744a"
 # ─── Secrets (set via: wrangler secret put API_SECRET) ───────────────────────
 # API_SECRET — voliteľný API kľúč, nastav cez: wrangler secret put API_SECRET
 
+# ─── Denná záloha dát (cron) ─────────────────────────────────────────────────
+# 05:00 UTC = 07:00 letný čas (CEST) / 06:00 zimný čas (CET) — cron je vždy v UTC.
+# Spúšťa scheduled() → runBackup() → commit snímku do vetvy "backups" na GitHube.
+[triggers]
+crons = ["0 5 * * *"]
+
 # ─── CORS origins ─────────────────────────────────────────────────────────────
 [vars]
 ALLOWED_ORIGIN = "*"

@@ -110,6 +110,88 @@ async function authenticate(request, env) {
   return !!payload;
 }
 
+// ─── ZÁLOHA DÁT DO GITHUBU ────────────────────────────────────────────────────
+// UTF-8 reťazec → base64 (pre GitHub Git Data API)
+function b64encodeUtf8(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(bin);
+}
+
+// Urobí kompletný snímok dát (produkty + fotky + posledné kódy) a commitne ho
+// do vetvy "backups" v GitHub repozitári ako dr-backup.json. Vďaka Git Data API
+// zvládne aj veľké fotky; história commitov = jednotlivé denné verzie.
+async function runBackup(env) {
+  const REPO   = env.BACKUP_REPO || 'kolodiazhna-ux/limitky';
+  const BRANCH = 'backups';
+  const FILE   = 'dr-backup.json';
+  const token  = env.GITHUB_TOKEN;
+  if (!token) throw new Error('GITHUB_TOKEN nie je nastavený');
+
+  // 1) Dáta z D1
+  const stateRow = await env.DB.prepare("SELECT value FROM state WHERE key='products'").first();
+  const products = stateRow ? JSON.parse(stateRow.value) : [];
+  const { results: photoRows } = await env.DB.prepare('SELECT id, data FROM photos').all();
+  const photos = {};
+  for (const r of photoRows) photos[r.id] = r.data;
+  const { results: recentRows } = await env.DB.prepare('SELECT code FROM recent_codes ORDER BY position ASC').all();
+  const recent = recentRows.map(r => r.code);
+  const snapshot = {
+    generatedAt:  new Date().toISOString(),
+    productCount: products.length,
+    photoCount:   Object.keys(photos).length,
+    products, recent, photos,
+  };
+  const content = JSON.stringify(snapshot);
+
+  // 2) GitHub Git Data API
+  const gh = (p, opts = {}) => fetch(`https://api.github.com/repos/${REPO}${p}`, {
+    ...opts,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'User-Agent': 'limitky-backup',
+      'Accept': 'application/vnd.github+json',
+      ...(opts.headers || {}),
+    },
+  });
+
+  // vetva backups — ak neexistuje, založ ju z main
+  let refRes = await gh(`/git/ref/heads/${BRANCH}`);
+  if (refRes.status === 404) {
+    const mainRef = await gh('/git/ref/heads/main');
+    if (!mainRef.ok) throw new Error('main ref ' + mainRef.status);
+    const mainSha = (await mainRef.json()).object.sha;
+    const cr = await gh('/git/refs', { method: 'POST', body: JSON.stringify({ ref: `refs/heads/${BRANCH}`, sha: mainSha }) });
+    if (!cr.ok) throw new Error('create branch ' + cr.status + ' ' + await cr.text());
+    refRes = await gh(`/git/ref/heads/${BRANCH}`);
+  }
+  if (!refRes.ok) throw new Error('ref ' + refRes.status);
+  const baseCommitSha = (await refRes.json()).object.sha;
+  const baseCommit    = await (await gh(`/git/commits/${baseCommitSha}`)).json();
+
+  const blobRes = await gh('/git/blobs', { method: 'POST', body: JSON.stringify({ content: b64encodeUtf8(content), encoding: 'base64' }) });
+  if (!blobRes.ok) throw new Error('blob ' + blobRes.status + ' ' + await blobRes.text());
+  const blobSha = (await blobRes.json()).sha;
+
+  const treeRes = await gh('/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: baseCommit.tree.sha, tree: [{ path: FILE, mode: '100644', type: 'blob', sha: blobSha }] }) });
+  if (!treeRes.ok) throw new Error('tree ' + treeRes.status);
+  const treeSha = (await treeRes.json()).sha;
+
+  const msg = `Záloha dát ${snapshot.generatedAt} — ${snapshot.productCount} produktov, ${snapshot.photoCount} fotiek`;
+  const commitRes = await gh('/git/commits', { method: 'POST', body: JSON.stringify({ message: msg, tree: treeSha, parents: [baseCommitSha] }) });
+  if (!commitRes.ok) throw new Error('commit ' + commitRes.status);
+  const newCommitSha = (await commitRes.json()).sha;
+
+  const upd = await gh(`/git/refs/heads/${BRANCH}`, { method: 'PATCH', body: JSON.stringify({ sha: newCommitSha, force: true }) });
+  if (!upd.ok) throw new Error('update ref ' + upd.status);
+
+  return { ok: true, commit: newCommitSha, products: snapshot.productCount, photos: snapshot.photoCount, at: snapshot.generatedAt };
+}
+
 // ─── MAIN HANDLER ─────────────────────────────────────────────────────────────
 export default {
   async fetch(request, env) {
@@ -125,6 +207,16 @@ export default {
     const method = request.method;
 
     try {
+      // ── GET /api/backup?key=… ──────────────────────────────────────────────
+      // Ručné spustenie zálohy (rovnaká logika ako denný cron). Chránené kľúčom.
+      if (method === 'GET' && path === '/api/backup') {
+        if (!env.BACKUP_KEY || url.searchParams.get('key') !== env.BACKUP_KEY) {
+          return err('Unauthorized', 401, cors);
+        }
+        const res = await runBackup(env);
+        return json(res, 200, cors);
+      }
+
       // ── POST /api/auth/register ────────────────────────────────────────────
       if (method === 'POST' && path === '/api/auth/register') {
         const { email, password } = await request.json();
@@ -278,5 +370,10 @@ export default {
       console.error(e);
       return err(e.message, 500, cors);
     }
+  },
+
+  // ── Denný cron: automatická záloha (nastavené v wrangler.toml) ──────────────
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runBackup(env).catch((e) => console.error('Backup failed:', e)));
   },
 };
