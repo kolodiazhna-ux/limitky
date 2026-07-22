@@ -507,7 +507,7 @@ const ROW_COLORS = ["", "#efe7f8", "#e3f6ec", "#fdf0dc", "#e2edfb", "#fbe4f0", "
 // Ktorú kategóriu táto stránka zobrazuje. index.html = "limitka",
 // specialka.html = "specialka", rdf.html = "rdf", nove.html = "nove".
 // Nastavuje sa cez <body data-category="…">.
-const PAGE_CATEGORY = document.body.dataset.category || "limitka";
+let PAGE_CATEGORY = document.body.dataset.category || "limitka";
 
 let currentBucket = "new"; // aktívna etapa procesu (alebo "trash" pre Kôš)
 let selected = new Set();
@@ -1605,6 +1605,35 @@ $("#exportBtn")?.addEventListener("click", exportCSV);
 $("#backupPhotosBtn")?.addEventListener("click", (e) => backupPhotos(e.currentTarget));
 $("#trashBtn")?.addEventListener("click", () => { currentBucket = "trash"; render(); });
 $("#archiveBtn")?.addEventListener("click", () => { currentBucket = "archive"; render(); });
+
+/* ── Prepínanie kategórií BEZ znovunačítania stránky (žiadne blikanie) ──────
+   Všetky dáta sú už načítané; kliknutie na kategóriu len prefiltruje a prekreslí. */
+const CAT_BY_HREF = { "./index.html": "limitka", "./nove.html": "nove", "./specialka.html": "specialka", "./rdf.html": "rdf", "./kozmetika.html": "kozmetika" };
+const HREF_BY_CAT = { limitka: "./index.html", nove: "./nove.html", specialka: "./specialka.html", rdf: "./rdf.html", kozmetika: "./kozmetika.html" };
+function switchCategory(cat, push = true) {
+  if (!HREF_BY_CAT[cat]) return;
+  PAGE_CATEGORY = cat;
+  currentBucket = "new";
+  fotoFilter = "all";
+  document.querySelectorAll(".toolbar a.btn-ghost").forEach((a) => {
+    a.classList.toggle("active", CAT_BY_HREF[a.getAttribute("href")] === cat);
+  });
+  const addBtn = document.querySelector(".add-bar .btn-primary");
+  if (addBtn) addBtn.setAttribute("href", "./novy-produkt.html?cat=" + cat);
+  if (push) { try { history.pushState({ cat }, "", HREF_BY_CAT[cat]); } catch (e) {} }
+  render();
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll(".toolbar a.btn-ghost").forEach((a) => {
+  const cat = CAT_BY_HREF[a.getAttribute("href")];
+  if (!cat) return; // napr. Postup → nechaj normálnu navigáciu
+  a.addEventListener("click", (e) => { e.preventDefault(); switchCategory(cat); });
+});
+try { history.replaceState({ cat: PAGE_CATEGORY }, "", location.href); } catch (e) {}
+window.addEventListener("popstate", (e) => {
+  const cat = (e.state && e.state.cat) || document.body.dataset.category || "limitka";
+  switchCategory(cat, false);
+});
 $("#cancelBtn")?.addEventListener("click", closeModal);
 $("#saveBtn")?.addEventListener("click", saveModal);
 $("#modalBg")?.addEventListener("click", (e) => { if (e.target.id === "modalBg") closeModal(); });
