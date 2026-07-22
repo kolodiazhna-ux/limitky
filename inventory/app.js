@@ -779,11 +779,11 @@ function renderFotoStats() {
   const cnt = (s) => rows.filter((r) => (r.status || "") === s).length;
   const blocks = [
     { v: "all",              label: "Všetky",          icon: "",   n: rows.length,             cls: "fs-all" },
-    { v: "Partizánske",      label: "Partizánske",     icon: "🏙️", n: cnt("Partizánske"),      cls: "fs-partizanske" },
     { v: "Bošany",           label: "Bošany",          icon: "🏘️", n: cnt("Bošany"),           cls: "fs-preparing" },
     { v: "V presune do BA",  label: "V presune do BA", icon: "🚚", n: cnt("V presune do BA"),  cls: "fs-sent" },
-    { v: "V presune do PE",  label: "V presune do PE", icon: "🚚", n: cnt("V presune do PE"),  cls: "fs-returned" },
     { v: "Bratislava",       label: "Bratislava",      icon: "🏢", n: cnt("Bratislava"),       cls: "fs-published" },
+    { v: "V presune do PE",  label: "V presune do PE", icon: "🚚", n: cnt("V presune do PE"),  cls: "fs-returned" },
+    { v: "Partizánske",      label: "Partizánske",     icon: "🏙️", n: cnt("Partizánske"),      cls: "fs-partizanske" },
   ];
   el.innerHTML = blocks.map((b) => `
     <button class="foto-stat ${b.cls}${fotoFilter === b.v ? " active" : ""}" data-fstat="${b.v}">
