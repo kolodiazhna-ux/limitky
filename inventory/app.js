@@ -1421,6 +1421,8 @@ function showTextZoom(cell, e) {
   if (cell.isContentEditable && document.activeElement === cell) return;
   const txt = (cell.textContent || "").trim();
   if (!txt) return;
+  // ak sa celý text zmestí do bunky (nie je orezaný), náhľad netreba
+  if (cell.scrollHeight <= cell.clientHeight + 1 && cell.scrollWidth <= cell.clientWidth + 1) return;
   if (!textZoomEl) {
     textZoomEl = document.createElement("div");
     textZoomEl.className = "text-zoom";

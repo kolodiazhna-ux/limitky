@@ -227,7 +227,7 @@ thead th.no-sort { cursor: default; }
 .col-resizer:hover { background: rgba(255,255,255,0.4); }
 thead th .arrow { opacity: .5; font-size: 10px; margin-left: 2px; }
 tbody td {
-  padding: 4px 6px; border-bottom: 1px solid var(--smoke); font-size: 12px;
+  padding: 9px 6px; border-bottom: 1px solid var(--smoke); font-size: 12px;
   vertical-align: middle; overflow-wrap: anywhere; word-break: break-word;
 }
 /* Farba riadka: aplikuje sa na všetky bunky, aby prefarbila celý riadok */
@@ -240,7 +240,7 @@ tbody tr.selected td { background: #f3edfb; }
 tbody tr.selected[style*="--row-bg"] td { background: var(--row-bg); }
 
 .code { font-weight: 700; color: var(--primary-dark); }
-.cell-edit { cursor: text; border-radius: 6px; padding: 4px 6px; margin: -4px -6px; }
+.cell-edit { cursor: text; border-radius: 6px; padding: 9px 6px; margin: -9px -6px; }
 .cell-edit:hover { background: var(--primary-light); }
 .cell-edit:focus { outline: 2px solid var(--primary); background: #fff; }
 
@@ -250,26 +250,11 @@ tbody tr.selected[style*="--row-bg"] td { background: var(--row-bg); }
 .transfer-cell .tr-line:focus { border-style: solid; }
 .transfer-cell .tr-line:empty::before { content: attr(data-ph); color: var(--muted); font-style: italic; }
 
-/* Poznámka & Popis — orezaný náhľad (kratší riadok), plný text po najazdení myšou */
+/* Poznámka & Popis — plný text na celú šírku bunky (bez orezania) */
 .note-cell, .desc-cell {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  position: relative;
-}
-.note-cell {
-  -webkit-line-clamp: 2;
-  max-height: 3.2em;
-}
-.desc-cell {
-  -webkit-line-clamp: 3;
-  max-height: 4.6em;
-}
-.note-cell:focus, .desc-cell:focus {
-  display: block;
-  -webkit-line-clamp: unset;
-  max-height: none;
-  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .thumb {
   width: 40px; height: 40px; border-radius: 6px; object-fit: cover;
