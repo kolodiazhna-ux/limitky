@@ -250,11 +250,20 @@ tbody tr.selected[style*="--row-bg"] td { background: var(--row-bg); }
 .transfer-cell .tr-line:focus { border-style: solid; }
 .transfer-cell .tr-line:empty::before { content: attr(data-ph); color: var(--muted); font-style: italic; }
 
-/* Poznámka & Popis — plný text na celú šírku bunky (bez orezania) */
+/* Poznámka & Popis — plná šírka bunky, ale výška orezaná na 2 riadky
+   (dlhší text sa skryje; celý sa ukáže po najazdení myšou v náhľade). */
 .note-cell, .desc-cell {
-  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+.note-cell:focus, .desc-cell:focus {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
 }
 .thumb {
   width: 40px; height: 40px; border-radius: 6px; object-fit: cover;
