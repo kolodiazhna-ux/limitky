@@ -743,6 +743,10 @@ function getView() {
 
 /* ---------- Render ---------- */
 function render() {
+  // Skry plávajúce náhľady (zväčšená fotka/text) — inak by po prekreslení
+  // (napr. po vymazaní fotky) ostali visieť, keďže mouseleave sa už nespustí.
+  hidePhotoZoom();
+  hideTextZoom();
   const rows = getView();
   const grid = $("#gridView");
   const tableWrap = document.querySelector(".table-wrap");
