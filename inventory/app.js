@@ -1421,9 +1421,7 @@ function showTextZoom(cell, e) {
   if (cell.isContentEditable && document.activeElement === cell) return;
   const txt = (cell.textContent || "").trim();
   if (!txt) return;
-  // ak sa celý text zmestí (nie je orezaný), náhľad netreba — meriame vnútorný divok
-  const clip = cell.querySelector(".clampbox") || cell;
-  if (clip.scrollHeight <= clip.clientHeight + 1 && clip.scrollWidth <= clip.clientWidth + 1) return;
+  // náhľad (zväčšený text) sa ukáže vždy pri prejdení myšou — aj pri krátkom texte
   if (!textZoomEl) {
     textZoomEl = document.createElement("div");
     textZoomEl.className = "text-zoom";
