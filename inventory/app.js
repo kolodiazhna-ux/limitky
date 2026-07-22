@@ -1637,7 +1637,7 @@ function initColumnResize() {
   if (!table) return;
   const cols = table.querySelectorAll("colgroup col");
   const ths  = table.querySelectorAll("thead th");
-  const KEY  = "dr_col_widths_" + PAGE_CATEGORY;
+  const KEY  = "dr_col_widths"; // spoločné pre všetky stránky → stĺpce sú všade rovnako široké
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) {}
   // ak sa zmenil počet stĺpcov, staré šírky zahodíme (nesadli by na správne stĺpce)
