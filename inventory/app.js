@@ -523,7 +523,7 @@ let selected = new Set();
 let fotoFilter = "all";
 
 // Zobrazenie zoznamu: "table" (riadky) alebo "grid" (karty s fotkou)
-let viewMode = localStorage.getItem("dr_view_mode") || "table";
+let viewMode = "table"; // len tabuľkový režim (prepínač zobrazenia bol odstránený)
 function setViewMode(m) {
   viewMode = m;
   try { localStorage.setItem("dr_view_mode", m); } catch (e) {}
