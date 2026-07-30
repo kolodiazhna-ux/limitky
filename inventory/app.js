@@ -466,7 +466,7 @@ function normalize(rows) {
       photoStatus: "", photoLink: "", transferNo: "",
       transferUp: "", transferDown: "", status: "", rowColor: "", bucket: "",
       webSk: "", webCz: "", kovanie: "", deadline: "", category: "", collection: "",
-      fotoNote: "", ...r,
+      fotoNote: "", presunka: "", presunkaLink: "", ...r,
     };
     // Migrácia: starý jeden "transferNo" -> horný presun (na fotenie)
     if (!o.transferUp && o.transferNo) o.transferUp = o.transferNo;
@@ -955,7 +955,7 @@ function renderFooter(rows) {
   tfoot.innerHTML = `<tr class="sum-row">
     <td colspan="7" class="sum-label">Spolu v zozname</td>
     <td class="sum-pieces">${pieces}</td>
-    <td colspan="11" class="sum-note">${rows.length} ${plural(rows.length, "produkt", "produkty", "produktov")} · ${pieces} ${plural(pieces, "kus", "kusy", "kusov")}</td>
+    <td colspan="12" class="sum-note">${rows.length} ${plural(rows.length, "produkt", "produkty", "produktov")} · ${pieces} ${plural(pieces, "kus", "kusy", "kusov")}</td>
   </tr>`;
 }
 
@@ -1115,11 +1115,15 @@ function rowHtml(r) {
     <td class="cell-edit" data-field="place" contenteditable="true">${esc(r.place)}</td>
     <td>${kovanieCell(r.id, r.kovanie)}</td>
     <td>${selectHtml("status", r.status, STATUSES, statusClass)}</td>
-    <td class="cell-edit" data-field="presunka" contenteditable="true" title="Číslo presunky (napr. IT-202614406)">${esc(r.presunka)}</td>
+    <td class="presunka-cell" title="Číslo presunky (napr. IT-202614406) + odkaz">
+      <span class="cell-edit" data-field="presunka" contenteditable="true">${esc(r.presunka)}</span>
+      <span class="presunka-link">${linkCell(r.id, "presunkaLink", r.presunkaLink)}</span>
+    </td>
     <td class="check-td"><input type="checkbox" class="hotove-check" data-hotoveid="${r.id}" ${r.bucket === "soldout" ? "checked" : ""} title="Hotové — presunúť do priečinka Hotové" /></td>
     <td>${linkCell(r.id, "webSk", r.webSk)}</td>
     <td>${linkCell(r.id, "webCz", r.webCz)}</td>
     <td class="date-cell" data-datefield="date" data-id="${r.id}" title="Kliknite pre zmenu dátumu">${fmtDate(r.date)}</td>
+    <td class="date-cell" data-datefield="deadline" data-id="${r.id}" title="Kliknite pre zmenu deadline">${fmtDate(r.deadline)}</td>
     <td class="cell-edit desc-cell" data-field="desc" contenteditable="true"><div class="clampbox">${esc(r.desc)}</div></td>
     <td class="price cell-edit" data-field="price" contenteditable="true">${esc(r.price)}</td>
     <td class="cell-edit note-cell" data-field="note" contenteditable="true" data-note="${esc(r.note)}"><div class="clampbox">${esc(r.note)}</div></td>
@@ -1281,7 +1285,7 @@ function bindRowEvents() {
     b.addEventListener("click", () => {
       const row = data.find((r) => r.id === +b.dataset.linkedit);
       const field = b.dataset.linkfield; // photoLink / webSk / webCz
-      const labels = { photoLink: "odkaz na fotky", webSk: "odkaz Web SK", webCz: "odkaz Web CZ" };
+      const labels = { photoLink: "odkaz na fotky", webSk: "odkaz Web SK", webCz: "odkaz Web CZ", presunkaLink: "odkaz na presunku" };
       const current = row[field] || "";
       const val = window.prompt(`Vložte ${labels[field] || "odkaz"}:`, current);
       if (val === null) return; // zrušené
@@ -1657,8 +1661,8 @@ async function saveModal() {
 
 /* ---------- Export ---------- */
 function exportCSV() {
-  const cols = ["category", "collection", "code", "name", "qty", "place", "kovanie", "status", "transferUp", "transferDown", "photoStatus", "photoLink", "fotoNote", "webSk", "webCz", "date", "deadline", "desc", "price", "note", "bucket"];
-  const head = ["Kategória", "Kolekcia", "Kód", "Názov produktu", "Počet ks", "Miesto výroby", "Kovanie", "Stav", "Presun na fotenie", "Presun na sklad", "Stav fotenia", "Odkaz na fotky", "Poznámka pre fotenie", "Web SK", "Web CZ", "Dátum uverejnenia", "Deadline", "Popis", "Cena", "Poznámka", "Kôš"];
+  const cols = ["category", "collection", "code", "name", "qty", "place", "kovanie", "status", "presunka", "presunkaLink", "transferUp", "transferDown", "photoStatus", "photoLink", "fotoNote", "webSk", "webCz", "date", "deadline", "desc", "price", "note", "bucket"];
+  const head = ["Kategória", "Kolekcia", "Kód", "Názov produktu", "Počet ks", "Miesto výroby", "Kovanie", "Stav", "Č. presunky", "Odkaz na presunku", "Presun na fotenie", "Presun na sklad", "Stav fotenia", "Odkaz na fotky", "Poznámka pre fotenie", "Web SK", "Web CZ", "Dátum uverejnenia", "Deadline", "Popis", "Cena", "Poznámka", "Kôš"];
   // Pozn.: stĺpec "Stav" v tabuľke je premenovaný na "Mesto", v CSV ostáva pole `status`.
   const lines = [head.join(",")];
   data.forEach((r) => {

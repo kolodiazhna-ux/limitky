@@ -413,6 +413,11 @@ td.foto-comment-cell:hover, td.foto-comment-cell:focus { white-space: normal; ov
 }
 .link-edit:hover { background: var(--smoke); color: var(--primary); }
 
+/* Bunka „Č. presunky" — editovateľné číslo + kompaktný odkaz pod ním */
+.presunka-cell { white-space: normal; }
+.presunka-cell .cell-edit { display: block; }
+.presunka-cell .presunka-link { display: inline-flex; align-items: center; margin-top: 2px; }
+
 /* Kovanie — farebné body (zlaté / strieborné) namiesto textu */
 .kov-cell { display: flex; gap: 3px; justify-content: center; align-items: center; }
 .kov-dot {
