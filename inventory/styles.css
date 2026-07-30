@@ -363,6 +363,10 @@ tbody tr.hotove-row:not([style*="--row-bg"]):hover td { background: #e9e7ef; }
 }
 .bulk-btn:hover { background: rgba(255,255,255,.30); }
 .bulk-btn.danger:hover { background: var(--danger); }
+.bulk-row-break { flex-basis: 100%; height: 0; }
+.bulk-sep { font-weight: 800; opacity: .9; font-size: 12px; padding-right: 2px; }
+.bulk-btn.bulk-mesto { background: rgba(255,255,255,.10); font-weight: 600; }
+.bulk-btn.bulk-mesto:hover { background: rgba(255,255,255,.30); }
 .bulk-swatches { display: flex; gap: 5px; }
 .bulk-swatch { width: 20px; height: 20px; border-radius: 50%; cursor: pointer; border: 2px solid rgba(255,255,255,.35); }
 .bulk-swatch.none { display: grid; place-items: center; font-size: 11px; background: rgba(255,255,255,.1); }

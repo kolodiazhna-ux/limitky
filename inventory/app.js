@@ -786,6 +786,7 @@ function render() {
   renderTabs();
   renderFotoStats();
   renderCharts();
+  renderBulkBar();
 }
 
 /* ---------- Počítadlá stavu fotenia (rovnaké ako vo Fotení) ---------- */
@@ -1260,10 +1261,20 @@ function renderBulkBar() {
     <button class="bulk-btn" data-bact="active">↩️ Zrušiť Hotové</button>
     <button class="bulk-btn" data-bact="archive">📁 Do archívu</button>
     <button class="bulk-btn danger" data-bact="del">🗑️ Do koša</button>
-    <button class="bulk-btn" data-bact="clear">✕ Zrušiť výber</button>`;
+    <button class="bulk-btn" data-bact="clear">✕ Zrušiť výber</button>
+    <div class="bulk-row-break"></div>
+    <span class="bulk-sep">📍 Mesto:</span>
+    ${STATUSES.map((s) => `<button class="bulk-btn bulk-mesto" data-bmesto="${esc(s)}">${s ? esc(s) : "—"}</button>`).join("")}`;
   bar.classList.add("show");
   bar.querySelectorAll("[data-bcolor]").forEach((sw) =>
     sw.addEventListener("click", () => applyToSelected((r) => (r.rowColor = sw.dataset.bcolor), "Farba zmenená"))
+  );
+  bar.querySelectorAll("[data-bmesto]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const m = btn.dataset.bmesto;
+      applyToSelected((r) => (r.status = m), m ? `Mesto: ${m}` : "Mesto vymazané");
+      selected.clear(); render();
+    })
   );
   bar.querySelectorAll("[data-bact]").forEach((btn) =>
     btn.addEventListener("click", () => {
