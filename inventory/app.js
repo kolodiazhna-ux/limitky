@@ -1028,6 +1028,7 @@ function rowHtml(r) {
     <td class="cell-edit" data-field="place" contenteditable="true">${esc(r.place)}</td>
     <td>${kovanieCell(r.id, r.kovanie)}</td>
     <td>${selectHtml("status", r.status, STATUSES, statusClass)}</td>
+    <td class="cell-edit" data-field="presunka" contenteditable="true" title="Číslo presunky (napr. IT-202614406)">${esc(r.presunka)}</td>
     <td class="check-td"><input type="checkbox" class="hotove-check" data-hotoveid="${r.id}" ${r.bucket === "soldout" ? "checked" : ""} title="Hotové — presunúť do priečinka Hotové" /></td>
     <td>${linkCell(r.id, "webSk", r.webSk)}</td>
     <td>${linkCell(r.id, "webCz", r.webCz)}</td>
