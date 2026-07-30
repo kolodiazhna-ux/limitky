@@ -48,6 +48,7 @@
   <div class="add-bar">
     <span class="add-bar-label">Pridať nový produkt:</span>
     <button class="btn btn-primary" onclick="openModal()">+ Pridať produkt</button>
+    <button class="btn btn-ghost" onclick="loadTestPresunka()" style="margin-left:8px">📥 Načítať presunku IT-202614406</button>
   </div>
 
   <div class="view-tabs" id="viewTabs"></div>
@@ -279,5 +280,35 @@
 
   <script src="./auth.js?v=20260721"></script>
   <script src="./app.js?v=20260721"></script>
+  <script>
+    // TEST: načíta položky presunky IT-202614406 (z PDF) do pieskoviska.
+    function loadTestPresunka() {
+      const P = "IT-202614406";
+      const items = [
+        { code: "CRDMON8.4-Z-001",    name: 'Cardholder Monaco "TMAVOHNEDÁ" Zlatá',   qty: 1 },
+        { code: "KHLMON8.4-Z-001",    name: 'Khloe Monaco "TMAVOHNEDÁ" Zlatá',         qty: 1 },
+        { code: "KARIIMON8.4-Z-001",  name: 'Karin II Monaco "TMAVOHNEDÁ" Zlatá',      qty: 1 },
+        { code: "LARMON8.4-Z-001",    name: 'Lara Monaco "TMAVOHNEDÁ" Zlatá',          qty: 1 },
+        { code: "POPCROMON8.4-Z-001", name: 'Popruh Croco Monaco "TMAVOHNEDÁ" Zlatá',  qty: 1 },
+        { code: "REN2V1MON8.4-Z-001", name: 'Rene 2v1 Monaco "TMAVOHNEDÁ" Zlatá',      qty: 1 },
+        { code: "KARMON8.4-Z-001",    name: 'Karin Monaco "TMAVOHNEDÁ" Zlatá',         qty: 1 },
+        { code: "BELMON8.4-Z-001",    name: 'Bella Monaco "TMAVOHNEDÁ" Zlatá',         qty: 1 },
+      ];
+      const existing = new Set(data.map((r) => String(r.code).toUpperCase()));
+      let added = 0;
+      items.forEach((it) => {
+        if (existing.has(it.code.toUpperCase())) return; // neduplikovať
+        data.push(normalize([{
+          id: nextId(), code: it.code, name: it.name, qty: it.qty,
+          category: "nove", status: "V presune do BA", presunka: P,
+          fotoStage: "", bucket: "",
+        }])[0]);
+        added++;
+      });
+      save();
+      render();
+      if (typeof toast === "function") toast(added ? `Presunka ${P}: načítaných ${added} položiek` : "Položky už sú načítané");
+    }
+  </script>
 </body>
 </html>
