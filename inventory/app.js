@@ -10,7 +10,7 @@ const STORAGE_KEY = SANDBOX ? "dr_inventory_sandbox_v2" : "dr_inventory_v2";
 /* ---------- Fotky v IndexedDB ----------
    Fotky (data URL) sú veľké, preto ich NEUKLADÁME do localStorage (limit ~5 MB),
    ale do IndexedDB (stovky MB). V pamäti držíme cache: id -> data URL. */
-const PHOTO_DB = "dr_photos";
+const PHOTO_DB = SANDBOX ? "dr_photos_sandbox" : "dr_photos";
 const PHOTO_STORE = "photos";
 let photoCache = {};
 let _photoDB = null;
