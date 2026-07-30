@@ -705,3 +705,11 @@ td.deadline-past { color: var(--danger); font-weight: 700; }
   font-size: 9px; font-weight: 800; letter-spacing: 0.5px;
   margin-left: 5px; vertical-align: middle; cursor: help; flex-shrink: 0;
 }
+
+/* Stĺpec „Komentár" — spoločné poznámky a otázky (vy aj manažér) */
+td.mgr-cell .clampbox:empty::before {
+  content: attr(data-ph);
+  color: var(--muted);
+  font-style: italic;
+}
+td.mgr-cell:not(:has(.clampbox:empty)) { background: #fffdf2; }

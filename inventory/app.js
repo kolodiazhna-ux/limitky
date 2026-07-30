@@ -466,7 +466,7 @@ function normalize(rows) {
       photoStatus: "", photoLink: "", transferNo: "",
       transferUp: "", transferDown: "", status: "", rowColor: "", bucket: "",
       webSk: "", webCz: "", kovanie: "", deadline: "", category: "", collection: "",
-      fotoNote: "", presunka: "", presunkaLink: "", ...r,
+      fotoNote: "", presunka: "", presunkaLink: "", mgrNote: "", ...r,
     };
     // Migrácia: starý jeden "transferNo" -> horný presun (na fotenie)
     if (!o.transferUp && o.transferNo) o.transferUp = o.transferNo;
@@ -955,7 +955,7 @@ function renderFooter(rows) {
   tfoot.innerHTML = `<tr class="sum-row">
     <td colspan="7" class="sum-label">Spolu v zozname</td>
     <td class="sum-pieces">${pieces}</td>
-    <td colspan="12" class="sum-note">${rows.length} ${plural(rows.length, "produkt", "produkty", "produktov")} · ${pieces} ${plural(pieces, "kus", "kusy", "kusov")}</td>
+    <td colspan="13" class="sum-note">${rows.length} ${plural(rows.length, "produkt", "produkty", "produktov")} · ${pieces} ${plural(pieces, "kus", "kusy", "kusov")}</td>
   </tr>`;
 }
 
@@ -1127,6 +1127,7 @@ function rowHtml(r) {
     <td class="cell-edit desc-cell" data-field="desc" contenteditable="true"><div class="clampbox">${esc(r.desc)}</div></td>
     <td class="price cell-edit" data-field="price" contenteditable="true">${esc(r.price)}</td>
     <td class="cell-edit note-cell" data-field="note" contenteditable="true" data-note="${esc(r.note)}"><div class="clampbox">${esc(r.note)}</div></td>
+    <td class="cell-edit note-cell mgr-cell" data-field="mgrNote" contenteditable="true" title="Komentár — otázky a poznámky (vy aj manažér)"><div class="clampbox" data-ph="komentár / otázka…">${esc(r.mgrNote)}</div></td>
     <td class="row-actions">
       <button class="icon-btn" data-menu="${r.id}" title="Akcie">&#8943;</button>
     </td>
@@ -1661,7 +1662,7 @@ async function saveModal() {
 
 /* ---------- Export ---------- */
 function exportCSV() {
-  const cols = ["category", "collection", "code", "name", "qty", "place", "kovanie", "status", "presunka", "presunkaLink", "transferUp", "transferDown", "photoStatus", "photoLink", "fotoNote", "webSk", "webCz", "date", "deadline", "desc", "price", "note", "bucket"];
+  const cols = ["category", "collection", "code", "name", "qty", "place", "kovanie", "status", "presunka", "presunkaLink", "transferUp", "transferDown", "photoStatus", "photoLink", "fotoNote", "webSk", "webCz", "date", "deadline", "desc", "price", "note", "mgrNote", "bucket"];
   const head = ["Kategória", "Kolekcia", "Kód", "Názov produktu", "Počet ks", "Miesto výroby", "Kovanie", "Stav", "Č. presunky", "Odkaz na presunku", "Presun na fotenie", "Presun na sklad", "Stav fotenia", "Odkaz na fotky", "Poznámka pre fotenie", "Web SK", "Web CZ", "Dátum uverejnenia", "Deadline", "Popis", "Cena", "Poznámka", "Kôš"];
   // Pozn.: stĺpec "Stav" v tabuľke je premenovaný na "Mesto", v CSV ostáva pole `status`.
   const lines = [head.join(",")];
