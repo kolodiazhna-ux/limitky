@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EFP — Test presunky</title>
+  <link rel="icon" href="./assets/symbol/purple.svg" />
+  <link rel="stylesheet" href="./styles.css" />
+  <style>
+    /* Testovacia stránka — samostatná, neprepojená s hlavným katalógom */
+    html { overflow-y: scroll; }
+    /* táto tabuľka má len 4 stĺpce → zrušíme široké min-width z hlavného CSS */
+    .table-wrap table { min-width: 0; width: 100%; }
+    .test-banner {
+      margin: 16px 28px 0; padding: 12px 16px; border-radius: 12px;
+      background: #fff8e1; border: 1.5px solid #f6c945; color: #6b5300;
+      font-size: 14px; line-height: 1.5;
+    }
+    .test-banner b { color: #4a3a00; }
+    .presunka-head {
+      margin: 16px 28px; display: flex; flex-wrap: wrap; gap: 10px 28px;
+      align-items: center; font-size: 14px; color: var(--ink);
+    }
+    .presunka-head .chip {
+      background: var(--smoke); border-radius: 999px; padding: 6px 14px; font-weight: 700;
+      color: var(--primary-dark);
+    }
+    .presunka-head .arrow { color: var(--muted); font-weight: 700; }
+    .presunka-head .meta { color: var(--muted); }
+    .presunka-head .meta b { color: var(--ink); }
+    .presunka-badge {
+      display: inline-block; background: #efe7f8; color: var(--primary-dark);
+      border-radius: 999px; padding: 3px 10px; font-weight: 700; font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="./assets/logo/white.svg" alt="Dajana Rodriguez" />
+      <div class="titles">
+        <h1>Test — Import presunky</h1>
+        <p>len pre teba · ukážka</p>
+      </div>
+    </div>
+  </header>
+
+  <div class="test-banner">
+    <b>🧪 Testovacia stránka.</b> Toto je ukážka, ako by vyzerali položky z presunky po natiahnutí do EFP.
+    Dáta tu <b>nie sú prepojené</b> s hlavným katalógom — nič sa neukladá ani neduplikuje.
+    Slúži len na to, aby sme si overili formát pred napojením naostro.
+  </div>
+
+  <div class="presunka-head">
+    <span><span class="presunka-badge">IT-202614406</span></span>
+    <span><span class="chip">Prototypy Partizánske</span> <span class="arrow">→</span> <span class="chip">BA OFFICE</span></span>
+    <span class="meta">Dátum: <b>30. 07. 2026</b></span>
+    <span class="meta">Spolu: <b>8 ks</b></span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <colgroup>
+        <col style="width:18%" />
+        <col style="width:46%" />
+        <col style="width:10%" />
+        <col style="width:26%" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Kód (SKU)</th>
+          <th>Názov produktu</th>
+          <th>Počet ks</th>
+          <th>Č. presunky</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <script>
+    // Položky presunky IT-202614406 (z PDF). Iba na zobrazenie — žiadne ukladanie.
+    const PRESUNKA = "IT-202614406";
+    const ITEMS = [
+      { sku: "CRDMON8.4-Z-001",     name: 'Cardholder Monaco "TMAVOHNEDÁ" Zlatá',   qty: 1 },
+      { sku: "KHLMON8.4-Z-001",     name: 'Khloe Monaco "TMAVOHNEDÁ" Zlatá',         qty: 1 },
+      { sku: "KARIIMON8.4-Z-001",   name: 'Karin II Monaco "TMAVOHNEDÁ" Zlatá',      qty: 1 },
+      { sku: "LARMON8.4-Z-001",     name: 'Lara Monaco "TMAVOHNEDÁ" Zlatá',          qty: 1 },
+      { sku: "POPCROMON8.4-Z-001",  name: 'Popruh Croco Monaco "TMAVOHNEDÁ" Zlatá',  qty: 1 },
+      { sku: "REN2V1MON8.4-Z-001",  name: 'Rene 2v1 Monaco "TMAVOHNEDÁ" Zlatá',      qty: 1 },
+      { sku: "KARMON8.4-Z-001",     name: 'Karin Monaco "TMAVOHNEDÁ" Zlatá',         qty: 1 },
+      { sku: "BELMON8.4-Z-001",     name: 'Bella Monaco "TMAVOHNEDÁ" Zlatá',         qty: 1 },
+    ];
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+    document.getElementById("tbody").innerHTML = ITEMS.map((it) => `
+      <tr>
+        <td class="code">${esc(it.sku)}</td>
+        <td>${esc(it.name)}</td>
+        <td>${it.qty} ks</td>
+        <td><span class="presunka-badge">${esc(PRESUNKA)}</span></td>
+      </tr>`).join("");
+  </script>
+</body>
+</html>
