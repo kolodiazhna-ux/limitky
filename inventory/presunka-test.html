@@ -3,102 +3,290 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EFP — Test presunky</title>
+  <title>EFP — TEST</title>
   <link rel="icon" href="./assets/symbol/purple.svg" />
   <link rel="stylesheet" href="./styles.css" />
-  <style>
-    /* Testovacia stránka — samostatná, neprepojená s hlavným katalógom */
-    html { overflow-y: scroll; }
-    /* táto tabuľka má len 4 stĺpce → zrušíme široké min-width z hlavného CSS */
-    .table-wrap table { min-width: 0; width: 100%; }
-    .test-banner {
-      margin: 16px 28px 0; padding: 12px 16px; border-radius: 12px;
-      background: #fff8e1; border: 1.5px solid #f6c945; color: #6b5300;
-      font-size: 14px; line-height: 1.5;
-    }
-    .test-banner b { color: #4a3a00; }
-    .presunka-head {
-      margin: 16px 28px; display: flex; flex-wrap: wrap; gap: 10px 28px;
-      align-items: center; font-size: 14px; color: var(--ink);
-    }
-    .presunka-head .chip {
-      background: var(--smoke); border-radius: 999px; padding: 6px 14px; font-weight: 700;
-      color: var(--primary-dark);
-    }
-    .presunka-head .arrow { color: var(--muted); font-weight: 700; }
-    .presunka-head .meta { color: var(--muted); }
-    .presunka-head .meta b { color: var(--ink); }
-    .presunka-badge {
-      display: inline-block; background: #efe7f8; color: var(--primary-dark);
-      border-radius: 999px; padding: 3px 10px; font-weight: 700; font-size: 12px;
-    }
-  </style>
 </head>
-<body>
+<body data-category="nove">
   <header class="topbar">
     <div class="brand">
       <img src="./assets/logo/white.svg" alt="Dajana Rodriguez" />
       <div class="titles">
-        <h1>Test — Import presunky</h1>
-        <p>len pre teba · ukážka</p>
+        <h1>Evidencia fotenia produktov</h1>
+        <p>🧪 Testovacia kópia — pieskovisko</p>
       </div>
     </div>
   </header>
 
-  <div class="test-banner">
-    <b>🧪 Testovacia stránka.</b> Toto je ukážka, ako by vyzerali položky z presunky po natiahnutí do EFP.
-    Dáta tu <b>nie sú prepojené</b> s hlavným katalógom — nič sa neukladá ani neduplikuje.
-    Slúži len na to, aby sme si overili formát pred napojením naostro.
+  <div style="margin:14px 28px 0;padding:12px 16px;border-radius:12px;background:#fff8e1;border:1.5px solid #f6c945;color:#6b5300;font-size:14px;line-height:1.5">
+    🧪 <b>Testovacia kópia (pieskovisko).</b> Vyzerá a funguje ako ostrá stránka, ale dáta sú len tu v prehliadači —
+    <b>nič sa neukladá na server</b> a neovplyvní to skutočné produkty. Načítané položky z presunky <b>IT-202614406</b>.
   </div>
 
-  <div class="presunka-head">
-    <span><span class="presunka-badge">IT-202614406</span></span>
-    <span><span class="chip">Prototypy Partizánske</span> <span class="arrow">→</span> <span class="chip">BA OFFICE</span></span>
-    <span class="meta">Dátum: <b>30. 07. 2026</b></span>
-    <span class="meta">Spolu: <b>8 ks</b></span>
+  <div class="toolbar">
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="searchInput" type="text" placeholder="Hľadať podľa kódu, názvu, popisu…" />
+    </div>
+    <div class="spacer"></div>
+    <a class="btn btn-ghost" href="./index.html">Limitky</a>
+    <a class="btn btn-ghost active" href="./nove.html">Nové produkty</a>
+    <a class="btn btn-ghost" href="./specialka.html">Špeciálka</a>
+    <a class="btn btn-ghost" href="./rdf.html">RDF produkty</a>
+    <a class="btn btn-ghost" href="./kozmetika.html">Kozmetika</a>
+    <a class="btn btn-ghost" href="./postup.html">Postup</a>
+    <div class="view-mode" id="viewMode">
+      <button class="vm-btn" id="vmGrid" title="Zobraziť ako karty">⊞</button>
+      <button class="vm-btn" id="vmTable" title="Zobraziť ako tabuľku">≡</button>
+    </div>
+    <button class="btn btn-ghost" id="archiveBtn">📁 Archív</button>
+    <button class="btn btn-ghost" id="trashBtn">🗑️ Kôš</button>
+    <button class="btn btn-ghost" id="exportBtn">Export CSV</button>
+    <button class="btn btn-primary" id="backupPhotosBtn" title="Nahrá všetky fotky z tohto zariadenia do spoločnej databázy">☁️ Zálohovať fotky</button>
   </div>
+
+  <div class="add-bar">
+    <span class="add-bar-label">Pridať nový produkt:</span>
+    <button class="btn btn-primary" onclick="openModal()">+ Pridať produkt</button>
+  </div>
+
+  <div class="view-tabs" id="viewTabs"></div>
+
+  <div class="foto-stats" id="fotoStats"></div>
+
+  <div class="charts-toggle-bar">
+    <button class="charts-toggle-btn" id="chartsToggle" aria-expanded="false">
+      <span class="charts-toggle-icon">📊</span>
+      <span class="charts-toggle-label">Štatistiky &amp; grafy</span>
+      <span class="charts-toggle-arrow">▼</span>
+    </button>
+  </div>
+
+  <section class="charts" id="charts" style="display:none">
+    <div class="chart-card">
+      <h3>Stav zásob</h3>
+      <div class="donut-row">
+        <div class="donut" id="donutStock"></div>
+        <ul class="legend" id="legendStock"></ul>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>Hodnota limitiek podľa kolekcie</h3>
+      <div class="bars" id="barsValue"></div>
+    </div>
+    <div class="chart-card">
+      <h3>Počet kusov podľa kolekcie</h3>
+      <div class="bars" id="barsQty"></div>
+    </div>
+  </section>
+
+  <div class="products-grid" id="gridView" style="display:none"></div>
 
   <div class="table-wrap">
     <table>
       <colgroup>
-        <col style="width:18%" />
-        <col style="width:46%" />
-        <col style="width:10%" />
-        <col style="width:26%" />
+        <col style="width:3%" />
+        <col style="width:6%" />
+        <col style="width:9%" />
+        <col style="width:4%" />
+        <col style="width:11%" />
+        <col style="width:4%" />
+        <col style="width:7%" />
+        <col style="width:5%" />
+        <col style="width:4%" />
+        <col style="width:7%" />
+        <col style="width:5%" />
+        <col style="width:3%" />
+        <col style="width:4%" />
+        <col style="width:4%" />
+        <col style="width:5%" />
+        <col style="width:7%" />
+        <col style="width:4%" />
+        <col style="width:6%" />
+        <col style="width:3%" />
+        <col style="width:7%" />
       </colgroup>
       <thead>
         <tr>
-          <th>Kód (SKU)</th>
-          <th>Názov produktu</th>
-          <th>Počet ks</th>
-          <th>Č. presunky</th>
+          <th class="no-sort sel-th"><input type="checkbox" id="selAll" title="Vybrať všetko" /></th>
+          <th data-sort="code">Kód <span class="arrow"></span></th>
+          <th data-sort="name">Názov produktu <span class="arrow"></span></th>
+          <th class="no-sort">Fotka</th>
+          <th data-sort="fotoStage">Stav fotenia <span class="arrow"></span></th>
+          <th class="no-sort">Link</th>
+          <th data-sort="qty">Počet ks <span class="arrow"></span></th>
+          <th data-sort="place">Výroba <span class="arrow"></span></th>
+          <th data-sort="kovanie">Kovanie <span class="arrow"></span></th>
+          <th data-sort="status">Mesto <span class="arrow"></span></th>
+          <th class="no-sort">Č. presunky</th>
+          <th class="no-sort">Hotové</th>
+          <th class="no-sort">Web SK</th>
+          <th class="no-sort">Web CZ</th>
+          <th data-sort="date">Dátum <span class="arrow"></span></th>
+          <th class="no-sort">Popis</th>
+          <th data-sort="price">Cena <span class="arrow"></span></th>
+          <th class="no-sort">Poznámka</th>
+          <th class="no-sort"></th>
+          <th class="no-sort" title="Komentár k fotke — zvýrazní riadok načerveno">Komentár k fotke</th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
+      <tfoot id="tfoot"></tfoot>
     </table>
+    <div class="empty-state" id="emptyState" style="display:none">
+      <h3>Žiadne produkty</h3>
+      <p>Pridajte prvý produkt alebo zmeňte filter.</p>
+    </div>
   </div>
 
+  <!-- Modal -->
+  <div class="modal-bg" id="modalBg">
+    <div class="modal">
+      <h2 id="modalTitle">Nový produkt</h2>
+      <input type="hidden" id="f-id" />
+      <div class="form-grid">
+        <div class="field full">
+          <label>Kategória</label>
+          <select id="f-category">
+            <option value="limitka">Limitka</option>
+            <option value="specialka">Špecialitka</option>
+            <option value="rdf">RDF produkt</option>
+            <option value="nove">Nový produkt</option>
+            <option value="kozmetika">Kozmetika</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Kód</label>
+          <input id="f-code" placeholder="napr. MIALIM72" />
+        </div>
+        <div class="field">
+          <label>Cena (€)</label>
+          <input id="f-price" type="number" step="1" placeholder="285" />
+        </div>
+        <div class="field full">
+          <label>Názov produktu</label>
+          <input id="f-name" placeholder="Mia Limitka 72 Zlatá" />
+        </div>
+        <div class="field full">
+          <label>Kolekcia</label>
+          <input id="f-collection" list="collectionList" placeholder="napr. Mia, Lily, Bella…" />
+          <datalist id="collectionList"></datalist>
+        </div>
+        <div class="field">
+          <label>Počet ks</label>
+          <input id="f-qty" type="number" step="1" placeholder="3" />
+        </div>
+        <div class="field">
+          <label>Miesto výroby</label>
+          <input id="f-place" placeholder="RRR" />
+        </div>
+        <div class="field">
+          <label>Dátum uverejnenia</label>
+          <input id="f-date" type="date" />
+        </div>
+        <div class="field">
+          <label>Deadline</label>
+          <input id="f-deadline" type="date" />
+        </div>
+        <div class="field">
+          <label>Kovanie</label>
+          <select id="f-kovanie"></select>
+        </div>
+        <div class="field">
+          <label>Mesto</label>
+          <select id="f-status"></select>
+        </div>
+        <div class="field">
+          <label>Č. presunu — na fotenie</label>
+          <input id="f-transferUp" placeholder="napr. P-2026-014" />
+        </div>
+        <div class="field">
+          <label>Č. presunu — na sklad z fotenia</label>
+          <input id="f-transferDown" placeholder="napr. P-2026-015" />
+        </div>
+        <div class="field">
+          <label>Stav fotenia</label>
+          <select id="f-photoStatus"></select>
+        </div>
+        <div class="field">
+          <label>Odkaz na fotky</label>
+          <input id="f-photoLink" type="url" placeholder="https://drive.google.com/…" />
+        </div>
+        <div class="field">
+          <label>Poznámka pre fotenie</label>
+          <input id="f-fotoNote" placeholder="napr. nafotiť aj zozadu" />
+        </div>
+        <div class="field">
+          <label>Web SK (odkaz)</label>
+          <input id="f-webSk" type="url" placeholder="https://dajanarodriguez.sk/…" />
+        </div>
+        <div class="field">
+          <label>Web CZ (odkaz)</label>
+          <input id="f-webCz" type="url" placeholder="https://dajanarodriguez.cz/…" />
+        </div>
+        <div class="field">
+          <label>Popis</label>
+          <input id="f-desc" placeholder="zlatá s výšivkou" />
+        </div>
+        <div class="field full">
+          <label>Poznámka</label>
+          <textarea id="f-note" placeholder="interná poznámka…"></textarea>
+        </div>
+        <div class="field full">
+          <label>Fotka</label>
+          <label class="photo-drop" id="photoDrop">
+            <div id="photoPreview">Kliknite pre nahratie fotky</div>
+            <input type="file" id="f-photo" accept="image/*" hidden />
+          </label>
+          <button type="button" class="btn btn-ghost" id="photoRemoveBtn" style="display:none;margin-top:8px;">Vymazať fotku</button>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="cancelBtn">Zrušiť</button>
+        <button class="btn btn-primary" id="saveBtn">Uložiť</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="row-menu" id="rowMenu"></div>
+
+  <div class="bulk-bar" id="bulkBar"></div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- Login overlay -->
+  <div class="auth-overlay" id="authOverlay">
+    <form class="auth-card" id="authForm" autocomplete="on">
+      <img class="auth-logo" src="./assets/logo/purple.svg" alt="Dajana Rodriguez" />
+      <h2 id="authTitle">Prihlásenie</h2>
+      <p class="auth-sub">Evidencia fotenia produktov</p>
+      <label for="auth-email">Email</label>
+      <input id="auth-email" type="email" required placeholder="vas@email.sk" autocomplete="email" />
+      <label for="auth-password">Heslo</label>
+      <input id="auth-password" type="password" required placeholder="••••••••" autocomplete="current-password" />
+      <div class="auth-error" id="authError" style="display:none"></div>
+      <button class="btn btn-primary" id="authSubmit" type="submit">Prihlásiť sa</button>
+      <p class="auth-toggle">
+        <span id="authTogglePrompt">Nemáte účet?</span>
+        <a href="#" id="authToggle">Zaregistrujte sa</a>
+      </p>
+    </form>
+  </div>
   <script>
-    // Položky presunky IT-202614406 (z PDF). Iba na zobrazenie — žiadne ukladanie.
-    const PRESUNKA = "IT-202614406";
-    const ITEMS = [
-      { sku: "CRDMON8.4-Z-001",     name: 'Cardholder Monaco "TMAVOHNEDÁ" Zlatá',   qty: 1 },
-      { sku: "KHLMON8.4-Z-001",     name: 'Khloe Monaco "TMAVOHNEDÁ" Zlatá',         qty: 1 },
-      { sku: "KARIIMON8.4-Z-001",   name: 'Karin II Monaco "TMAVOHNEDÁ" Zlatá',      qty: 1 },
-      { sku: "LARMON8.4-Z-001",     name: 'Lara Monaco "TMAVOHNEDÁ" Zlatá',          qty: 1 },
-      { sku: "POPCROMON8.4-Z-001",  name: 'Popruh Croco Monaco "TMAVOHNEDÁ" Zlatá',  qty: 1 },
-      { sku: "REN2V1MON8.4-Z-001",  name: 'Rene 2v1 Monaco "TMAVOHNEDÁ" Zlatá',      qty: 1 },
-      { sku: "KARMON8.4-Z-001",     name: 'Karin Monaco "TMAVOHNEDÁ" Zlatá',         qty: 1 },
-      { sku: "BELMON8.4-Z-001",     name: 'Bella Monaco "TMAVOHNEDÁ" Zlatá',         qty: 1 },
+    window.EFP_SANDBOX = true;
+    window.EFP_SEED = [
+      { id:9001, code:"CRDMON8.4-Z-001",    name:'Cardholder Monaco "TMAVOHNEDÁ" Zlatá',   category:"nove", status:"V presune do BA", presunka:"IT-202614406", qty:0, price:0 },
+      { id:9002, code:"KHLMON8.4-Z-001",    name:'Khloe Monaco "TMAVOHNEDÁ" Zlatá',        category:"nove", status:"V presune do BA", presunka:"IT-202614406", qty:0, price:0 },
+      { id:9003, code:"KARIIMON8.4-Z-001",  name:'Karin II Monaco "TMAVOHNEDÁ" Zlatá',     category:"nove", status:"V presune do BA", presunka:"IT-202614406", qty:0, price:0, note:"tie horné rúčky sú iné" },
+      { id:9004, code:"LARMON8.4-Z-001",    name:'Lara Monaco "TMAVOHNEDÁ" Zlatá',         category:"nove", status:"V presune do BA", presunka:"IT-202614406", qty:0, price:0, note:"Pozor Lara predný diel" },
+      { id:9005, code:"POPCROMON8.4-Z-001", name:'Popruh Croco Monaco "TMAVOHNEDÁ" Zlatá', category:"nove", status:"V presune do BA", presunka:"IT-202614406", qty:0, price:0 },
+      { id:9006, code:"REN2V1MON8.4-Z-001", name:'Rene 2v1 Monaco "TMAVOHNEDÁ" Zlatá',      category:"nove", status:"V presune do BA", presunka:"IT-202614406", qty:0, price:0 },
+      { id:9007, code:"KARMON8.4-Z-001",    name:'Karin Monaco "TMAVOHNEDÁ" Zlatá',        category:"nove", status:"V presune do BA", presunka:"IT-202614406", qty:0, price:0 },
+      { id:9008, code:"BELMON8.4-Z-001",    name:'Bella Monaco "TMAVOHNEDÁ" Zlatá',        category:"nove", status:"V presune do BA", presunka:"IT-202614406", qty:0, price:0 },
     ];
-    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
-    document.getElementById("tbody").innerHTML = ITEMS.map((it) => `
-      <tr>
-        <td class="code">${esc(it.sku)}</td>
-        <td>${esc(it.name)}</td>
-        <td>${it.qty} ks</td>
-        <td><span class="presunka-badge">${esc(PRESUNKA)}</span></td>
-      </tr>`).join("");
   </script>
+
+  <script src="./auth.js?v=20260721"></script>
+  <script src="./app.js?v=20260721"></script>
 </body>
 </html>

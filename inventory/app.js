@@ -2,7 +2,10 @@
    Dáta sú zatiaľ uložené lokálne v prehliadači (localStorage).
    Neskôr nahradíme spoločnou databázou (Cloudflare D1) pre tímové úpravy. */
 
-const STORAGE_KEY = "dr_inventory_v2";
+// Pieskovisko (test): stránka nastaví window.EFP_SANDBOX = true → dáta sú len
+// lokálne (samostatný kľúč), nič sa neukladá na server ani sa odtiaľ nenačítava.
+const SANDBOX = (typeof window !== "undefined" && window.EFP_SANDBOX === true);
+const STORAGE_KEY = SANDBOX ? "dr_inventory_sandbox" : "dr_inventory_v2";
 
 /* ---------- Fotky v IndexedDB ----------
    Fotky (data URL) sú veľké, preto ich NEUKLADÁME do localStorage (limit ~5 MB),
@@ -107,6 +110,7 @@ function apiFetch(url, opts) {
 
 // Uloží celý zoznam produktov na server. Beží na pozadí, chyby neblokujú appku.
 async function saveToServer() {
+  if (SANDBOX) return true; // pieskovisko: neukladať na server
   try {
     const res = await apiFetch(API_PRODUCTS, {
       method: "PUT",
@@ -119,6 +123,7 @@ async function saveToServer() {
 
 // Uloží (dataUrl) alebo vymaže (prázdne) jednu fotku na serveri.
 async function savePhotoToServer(id, dataUrl) {
+  if (SANDBOX) return true; // pieskovisko: fotky neukladať na server
   try {
     if (dataUrl) {
       await apiFetch(`${API_PHOTOS}/${id}`, {
@@ -201,6 +206,7 @@ let lastLocalChange = 0;
 let lastServerJson  = "";
 
 async function refreshFromServer() {
+  if (SANDBOX) return;                                      // pieskovisko: nesynchronizovať
   if (document.hidden) return;                              // karta v pozadí
   if (Date.now() - lastLocalChange < 15000) return;         // práve sme ukladali
   if ($("#modalBg")?.classList.contains("open")) return;    // otvorený formulár
@@ -231,6 +237,7 @@ setInterval(refreshFromServer, 30000);
    • server má dáta  → server vyhráva (spoločný stav pre všetkých),
    • server prázdny + máme lokálne → nahráme lokálne (prvé zariadenie). */
 async function syncFromServer() {
+  if (SANDBOX) return; // pieskovisko: nesťahovať zo servera (ostávame na lokálnom seed-e)
   let serverRows;
   try {
     const res = await apiFetch(API_PRODUCTS);
@@ -593,6 +600,13 @@ function ensureSeed(rows, seedList) {
 }
 
 function load() {
+  // Pieskovisko: seed z window.EFP_SEED, žiadne katalógové seedy (RDF/SPEC/LIM)
+  if (SANDBOX) {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return normalize(raw ? JSON.parse(raw) : (window.EFP_SEED || []));
+    } catch (e) { return normalize(window.EFP_SEED || []); }
+  }
   let rows;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
