@@ -5,7 +5,7 @@
 // Pieskovisko (test): stránka nastaví window.EFP_SANDBOX = true → dáta sú len
 // lokálne (samostatný kľúč), nič sa neukladá na server ani sa odtiaľ nenačítava.
 const SANDBOX = (typeof window !== "undefined" && window.EFP_SANDBOX === true);
-const STORAGE_KEY = SANDBOX ? "dr_inventory_sandbox" : "dr_inventory_v2";
+const STORAGE_KEY = SANDBOX ? "dr_inventory_sandbox_v2" : "dr_inventory_v2";
 
 /* ---------- Fotky v IndexedDB ----------
    Fotky (data URL) sú veľké, preto ich NEUKLADÁME do localStorage (limit ~5 MB),
