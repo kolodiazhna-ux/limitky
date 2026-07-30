@@ -684,6 +684,78 @@ function nextId() {
   return data.reduce((m, r) => Math.max(m, r.id), 0) + 1;
 }
 
+/* ---------- Import presunky z PDF ----------
+   Načíta ĽUBOVOĽNÚ presunku (PDF z DR adminky): prečíta text, nájde číslo
+   presunky (IT-…) a položky (SKU · názov · N ks) a pridá ich do tabuľky
+   ako nové riadky (názov PRESNE ako v presunke). Duplicitné kódy preskočí. */
+async function importPresunkaPDF(file) {
+  if (!file) return;
+  if (!window.pdfjsLib) { alert("Knižnica na čítanie PDF sa nenačítala (skontroluj pripojenie a skús znova)."); return; }
+  try {
+    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    const lines = [];
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const tc = await (await pdf.getPage(p)).getTextContent();
+      const byY = {};
+      tc.items.forEach((it) => {
+        const y = Math.round(it.transform[5]);
+        (byY[y] = byY[y] || []).push({ x: it.transform[4], s: it.str });
+      });
+      Object.keys(byY).map(Number).sort((a, b) => b - a).forEach((y) => {
+        const t = byY[y].sort((a, b) => a.x - b.x).map((o) => o.s).join(" ").replace(/\s+/g, " ").trim();
+        if (t) lines.push(t);
+      });
+    }
+    const noMatch = lines.join("\n").match(/IT-\d{4,}/);
+    const presunkaNo = noMatch ? noMatch[0] : "";
+    // Riadok položky: začína SKU (VEĽKÉ písmená + číslica + pomlčka) a končí "N ks"
+    const items = [];
+    lines.forEach((line) => {
+      const tokens = line.split(" ");
+      const sku = tokens[0];
+      const skuOk = /^[A-Z0-9][A-Z0-9.\-]{4,}$/.test(sku) && /\d/.test(sku) && sku.includes("-");
+      const qtyM = line.match(/(\d+)\s*ks\s*$/i);
+      if (skuOk && qtyM) {
+        const qty = parseInt(qtyM[1], 10) || 1;
+        const name = line.slice(sku.length).replace(/(\d+)\s*ks\s*$/i, "").trim();
+        items.push({ code: sku, name: name || sku, qty });
+      }
+    });
+    if (!items.length) {
+      alert("V tomto PDF som nenašiel položky presunky. Pošli mi ten súbor, doladím rozpoznávanie.");
+      return;
+    }
+    const existing = new Set(data.map((r) => String(r.code).toUpperCase()));
+    let added = 0, skipped = 0;
+    items.forEach((it) => {
+      if (existing.has(it.code.toUpperCase())) { skipped++; return; } // neduplikovať
+      data.push(normalize([{
+        id: nextId(), code: it.code, name: it.name, qty: it.qty,
+        category: PAGE_CATEGORY, status: "V presune do BA", presunka: presunkaNo,
+        fotoStage: "", bucket: "",
+      }])[0]);
+      existing.add(it.code.toUpperCase());
+      added++;
+    });
+    save();
+    render();
+    if (typeof toast === "function") {
+      const parts = [];
+      if (added) parts.push(`pridaných ${added}`);
+      if (skipped) parts.push(`preskočených ${skipped} (už existujú)`);
+      toast(`Presunka ${presunkaNo || ""}: ${parts.join(", ") || "žiadne nové položky"}`);
+    }
+  } catch (e) {
+    alert("Nepodarilo sa načítať PDF: " + e.message);
+  }
+}
+window.importPresunkaPDF = importPresunkaPDF;
+
 /* ---------- Helpers ---------- */
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));

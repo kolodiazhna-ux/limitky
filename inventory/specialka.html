@@ -6,6 +6,7 @@
   <title>EFP</title>
   <link rel="icon" href="./assets/symbol/purple.svg" />
   <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body data-category="specialka">
   <header class="topbar">
@@ -43,6 +44,7 @@
   <div class="add-bar">
     <span class="add-bar-label">Pridať nový produkt:</span>
     <a class="btn btn-primary" href="./novy-produkt.html?cat=specialka">+ Pridať produkt</a>
+    <label class="btn btn-ghost" style="margin-left:8px;cursor:pointer" title="Načítať presunku z PDF — pridá položky do tejto tabuľky">📥 Načítať presunku (PDF)<input type="file" accept="application/pdf,.pdf" onchange="importPresunkaPDF(this.files[0]); this.value=''" style="display:none" /></label>
   </div>
 
   <div class="view-tabs" id="viewTabs"></div>
