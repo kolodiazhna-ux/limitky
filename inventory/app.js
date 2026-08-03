@@ -404,6 +404,7 @@ const KOVANIE = ["", "Zlaté", "Strieborné"];
    Horné záložky = 4 etapy pipeline. Etapa sa počíta z fotoStage (+refoto),
    takže Sklad aj Fotenie ukazujú to isté a schválenie od Mirky sa prejaví tu. */
 const WF_STAGES = [
+  { v: "all",      label: "📋 Všetky" },
   { v: "new",      label: "🆕 Nové zadania" },
   { v: "progress", label: "📸 Fotí sa" },
   { v: "approval", label: "⏳ Čaká na schválenie" },
@@ -800,7 +801,7 @@ function getView() {
       if (!r.archived || (r.bucket || "") === "trash") return false;
     } else {
       if ((r.bucket || "") === "trash" || r.archived) return false;
-      if (workflowGroup(r) !== currentBucket) return false;
+      if (currentBucket !== "all" && workflowGroup(r) !== currentBucket) return false;
     }
     // Filter podľa miesta (počítadlá nad zoznamom = stĺpec Mesto)
     if (fotoFilter !== "all" && (r.status || "") !== fotoFilter) return false;
@@ -974,7 +975,7 @@ function renderTabs() {
   // Horné záložky = etapy procesu; Kôš a Archív majú vlastné tlačidlá v toolbare
   const catRows = data.filter((r) => productCategory(r) === PAGE_CATEGORY && (r.bucket || "") !== "trash" && !r.archived);
   $("#viewTabs").innerHTML = WF_STAGES.map((s) => {
-    const cnt = catRows.filter((r) => workflowGroup(r) === s.v).length;
+    const cnt = s.v === "all" ? catRows.length : catRows.filter((r) => workflowGroup(r) === s.v).length;
     return `<button class="view-tab ${s.v === currentBucket ? "active" : ""}" data-bucket="${s.v}">
       ${s.label}<span class="cnt">${cnt}</span></button>`;
   }).join("");
