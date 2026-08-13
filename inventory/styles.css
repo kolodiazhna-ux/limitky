@@ -382,6 +382,7 @@ tbody tr.hotove-row:not([style*="--row-bg"]):hover td { background: #e9e7ef; }
 .b-ok      { background: #e3f6ec; color: var(--ok); }
 .b-warn    { background: #fdf0dc; color: var(--warn); }
 .b-info    { background: #fff8e1; color: #b28704; }
+.b-edit    { background: #efe7f8; color: #7b3fa0; }
 .foto-dd   { width: 100%; min-width: 0; max-width: 100%; }
 
 /* Komentár k fotke — keď je vyplnený, celý riadok načerveno */
