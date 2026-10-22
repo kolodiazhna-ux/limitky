@@ -56,6 +56,7 @@ const CATEGORY_LABELS = {
   rdf:       "Nový RDF produkt",
   nove:      "Nový produkt",
   kozmetika: "Nová kozmetika",
+  zvnutra:   "Nový produkt — fotiť zvnútra",
 };
 (function initCategory() {
   const cat = new URLSearchParams(location.search).get("cat");
@@ -206,6 +207,7 @@ document.getElementById("saveBtn").addEventListener("click", async () => {
     rdf: "./rdf.html",
     nove: "./nove.html",
     kozmetika: "./kozmetika.html",
+    zvnutra: "./zvnutra.html",
   }[base.category] || "./index.html";
   setTimeout(() => { window.location.href = dest; }, 1000);
 });

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EFP</title>
+  <link rel="icon" href="./assets/symbol/purple.svg" />
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body data-category="zvnutra">
+  <header class="topbar">
+    <div class="brand">
+      <img src="./assets/logo/white.svg" alt="Dajana Rodriguez" />
+      <div class="titles">
+        <h1>Evidencia fotenia produktov</h1>
+        <p>Style with a story</p>
+      </div>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="searchInput" type="text" placeholder="Hľadať podľa kódu, názvu, popisu…" />
+    </div>
+    <div class="spacer"></div>
+    <a class="btn btn-ghost" href="./index.html">Limitky</a>
+    <a class="btn btn-ghost" href="./nove.html">Nové produkty</a>
+    <a class="btn btn-ghost" href="./specialka.html">Špeciálka</a>
+    <a class="btn btn-ghost" href="./rdf.html">RDF produkty</a>
+    <a class="btn btn-ghost" href="./kozmetika.html">Kozmetika</a>
+    <a class="btn btn-ghost active" href="./zvnutra.html">Zvnútra</a>
+    <a class="btn btn-ghost" href="./postup.html">Postup</a>
+    <button class="btn btn-ghost" id="archiveBtn">📁 Archív</button>
+    <button class="btn btn-ghost" id="trashBtn">🗑️ Kôš</button>
+    <button class="btn btn-ghost" id="exportBtn">Export CSV</button>
+    <button class="btn btn-primary" id="backupPhotosBtn" title="Nahrá všetky fotky z tohto zariadenia do spoločnej databázy">☁️ Zálohovať fotky</button>
+  </div>
+
+  <div class="add-bar">
+    <span class="add-bar-label">Pridať nový produkt:</span>
+    <a class="btn btn-primary" href="./novy-produkt.html?cat=zvnutra">+ Pridať produkt</a>
+    <label class="btn btn-ghost" style="margin-left:8px;cursor:pointer" title="Načítať presunku z PDF — pridá položky do tejto tabuľky">📥 Načítať presunku (PDF)<input type="file" accept="application/pdf,.pdf" onchange="importPresunkaPDF(this.files[0]); this.value=''" style="display:none" /></label>
+  </div>
+
+  <div class="view-tabs" id="viewTabs"></div>
+
+  <div class="foto-stats" id="fotoStats"></div>
+
+  <div class="charts-toggle-bar">
+    <button class="charts-toggle-btn" id="chartsToggle" aria-expanded="false">
+      <span class="charts-toggle-icon">📊</span>
+      <span class="charts-toggle-label">Štatistiky &amp; grafy</span>
+      <span class="charts-toggle-arrow">▼</span>
+    </button>
+  </div>
+
+  <section class="charts" id="charts" style="display:none">
+    <div class="chart-card">
+      <h3>Stav zásob</h3>
+      <div class="donut-row">
+        <div class="donut" id="donutStock"></div>
+        <ul class="legend" id="legendStock"></ul>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>Hodnota podľa kolekcie</h3>
+      <div class="bars" id="barsValue"></div>
+    </div>
+    <div class="chart-card">
+      <h3>Počet kusov podľa kolekcie</h3>
+      <div class="bars" id="barsQty"></div>
+    </div>
+  </section>
+
+  <div class="products-grid" id="gridView" style="display:none"></div>
+
+  <div class="table-wrap">
+    <table>
+      <colgroup>
+        <col style="width:3%" />
+        <col style="width:6%" />
+        <col style="width:9%" />
+        <col style="width:4%" />
+        <col style="width:11%" />
+        <col style="width:4%" />
+        <col style="width:7%" />
+        <col style="width:5%" />
+        <col style="width:4%" />
+        <col style="width:7%" />
+        <col style="width:5%" />
+        <col style="width:3%" />
+        <col style="width:4%" />
+        <col style="width:4%" />
+        <col style="width:5%" />
+        <col style="width:5%" />
+        <col style="width:7%" />
+        <col style="width:4%" />
+        <col style="width:6%" />
+        <col style="width:3%" />
+        <col style="width:7%" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th class="no-sort sel-th"><input type="checkbox" id="selAll" title="Vybrať všetko" /></th>
+          <th data-sort="code">Kód <span class="arrow"></span></th>
+          <th data-sort="name">Názov produktu <span class="arrow"></span></th>
+          <th class="no-sort">Fotka</th>
+          <th data-sort="fotoStage">Stav fotenia <span class="arrow"></span></th>
+          <th class="no-sort">Link</th>
+          <th data-sort="qty">Počet ks <span class="arrow"></span></th>
+          <th data-sort="place">Výroba <span class="arrow"></span></th>
+          <th data-sort="kovanie">Kovanie <span class="arrow"></span></th>
+          <th data-sort="status">Mesto <span class="arrow"></span></th>
+          <th class="no-sort">Č. presunky</th>
+          <th class="no-sort">Hotové</th>
+          <th class="no-sort">Web SK</th>
+          <th class="no-sort">Web CZ</th>
+          <th data-sort="date">Dátum <span class="arrow"></span></th>
+          <th data-sort="deadline">Deadline <span class="arrow"></span></th>
+          <th class="no-sort">Popis</th>
+          <th data-sort="price">Cena <span class="arrow"></span></th>
+          <th class="no-sort">Poznámka</th>
+          <th class="no-sort" title="Komentár — otázky a poznámky (vy aj manažér)">Komentár</th>
+          <th class="no-sort"></th>
+          <th class="no-sort" title="Komentár k fotke — zvýrazní riadok načerveno">Komentár k fotke</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+      <tfoot id="tfoot"></tfoot>
+    </table>
+    <div class="empty-state" id="emptyState" style="display:none">
+      <h3>Žiadne produkty</h3>
+      <p>Pridajte prvý produkt alebo zmeňte filter.</p>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-bg" id="modalBg">
+    <div class="modal">
+      <h2 id="modalTitle">Nový produkt</h2>
+      <input type="hidden" id="f-id" />
+      <div class="form-grid">
+        <div class="field full">
+          <label>Kategória</label>
+          <select id="f-category">
+            <option value="limitka">Limitka</option>
+            <option value="specialka">Špecialitka</option>
+            <option value="rdf">RDF produkt</option>
+            <option value="nove">Nový produkt</option>
+            <option value="kozmetika">Kozmetika</option>
+            <option value="zvnutra">Zvnútra</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Kód</label>
+          <input id="f-code" placeholder="napr. MIALIM72" />
+        </div>
+        <div class="field">
+          <label>Cena (€)</label>
+          <input id="f-price" type="number" step="1" placeholder="285" />
+        </div>
+        <div class="field full">
+          <label>Názov produktu</label>
+          <input id="f-name" placeholder="Mia Limitka 72 Zlatá" />
+        </div>
+        <div class="field full">
+          <label>Kolekcia</label>
+          <input id="f-collection" list="collectionList" placeholder="napr. Mia, Lily, Bella…" />
+          <datalist id="collectionList"></datalist>
+        </div>
+        <div class="field">
+          <label>Počet ks</label>
+          <input id="f-qty" type="number" step="1" placeholder="3" />
+        </div>
+        <div class="field">
+          <label>Miesto výroby</label>
+          <input id="f-place" placeholder="RRR" />
+        </div>
+        <div class="field">
+          <label>Dátum uverejnenia</label>
+          <input id="f-date" type="date" />
+        </div>
+        <div class="field">
+          <label>Deadline</label>
+          <input id="f-deadline" type="date" />
+        </div>
+        <div class="field">
+          <label>Kovanie</label>
+          <select id="f-kovanie"></select>
+        </div>
+        <div class="field">
+          <label>Mesto</label>
+          <select id="f-status"></select>
+        </div>
+        <div class="field">
+          <label>Č. presunu — na fotenie</label>
+          <input id="f-transferUp" placeholder="napr. P-2026-014" />
+        </div>
+        <div class="field">
+          <label>Č. presunu — na sklad z fotenia</label>
+          <input id="f-transferDown" placeholder="napr. P-2026-015" />
+        </div>
+        <div class="field">
+          <label>Stav fotenia</label>
+          <select id="f-photoStatus"></select>
+        </div>
+        <div class="field">
+          <label>Odkaz na fotky</label>
+          <input id="f-photoLink" type="url" placeholder="https://drive.google.com/…" />
+        </div>
+        <div class="field">
+          <label>Poznámka pre fotenie</label>
+          <input id="f-fotoNote" placeholder="napr. nafotiť aj zozadu" />
+        </div>
+        <div class="field">
+          <label>Web SK (odkaz)</label>
+          <input id="f-webSk" type="url" placeholder="https://dajanarodriguez.sk/…" />
+        </div>
+        <div class="field">
+          <label>Web CZ (odkaz)</label>
+          <input id="f-webCz" type="url" placeholder="https://dajanarodriguez.cz/…" />
+        </div>
+        <div class="field">
+          <label>Popis</label>
+          <input id="f-desc" placeholder="zlatá s výšivkou" />
+        </div>
+        <div class="field full">
+          <label>Poznámka</label>
+          <textarea id="f-note" placeholder="interná poznámka…"></textarea>
+        </div>
+        <div class="field full">
+          <label>Fotka</label>
+          <label class="photo-drop" id="photoDrop">
+            <div id="photoPreview">Kliknite pre nahratie fotky</div>
+            <input type="file" id="f-photo" accept="image/*" hidden />
+          </label>
+          <button type="button" class="btn btn-ghost" id="photoRemoveBtn" style="display:none;margin-top:8px;">Vymazať fotku</button>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="cancelBtn">Zrušiť</button>
+        <button class="btn btn-primary" id="saveBtn">Uložiť</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="row-menu" id="rowMenu"></div>
+
+  <div class="bulk-bar" id="bulkBar"></div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- Login overlay -->
+  <div class="auth-overlay" id="authOverlay">
+    <form class="auth-card" id="authForm" autocomplete="on">
+      <img class="auth-logo" src="./assets/logo/purple.svg" alt="Dajana Rodriguez" />
+      <h2 id="authTitle">Prihlásenie</h2>
+      <p class="auth-sub">Limitky — Sklad &amp; Inventár</p>
+      <label for="auth-email">Email</label>
+      <input id="auth-email" type="email" required placeholder="vas@email.sk" autocomplete="email" />
+      <label for="auth-password">Heslo</label>
+      <input id="auth-password" type="password" required placeholder="••••••••" autocomplete="current-password" />
+      <div class="auth-error" id="authError" style="display:none"></div>
+      <button class="btn btn-primary" id="authSubmit" type="submit">Prihlásiť sa</button>
+      <p class="auth-toggle">
+        <span id="authTogglePrompt">Nemáte účet?</span>
+        <a href="#" id="authToggle">Zaregistrujte sa</a>
+      </p>
+    </form>
+  </div>
+
+  <script src="./auth.js?v=20260721"></script>
+  <script src="./app.js?v=20260721"></script>
+</body>
+</html>

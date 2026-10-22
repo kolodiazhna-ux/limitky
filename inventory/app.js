@@ -6,6 +6,9 @@
 // lokálne (samostatný kľúč), nič sa neukladá na server ani sa odtiaľ nenačítava.
 const SANDBOX = (typeof window !== "undefined" && window.EFP_SANDBOX === true);
 const STORAGE_KEY = SANDBOX ? "dr_inventory_sandbox_v2" : "dr_inventory_v2";
+// Príznak, že produkty záložky „Zvnútra" sú už doplnené (viď ensureZvnutraSeed).
+// Musí byť hore — load() beží skôr, než sa inicializujú konštanty pri ňom.
+const ZVNUTRA_SEED_FLAG = "dr_zvnutra_seed_v1";
 
 /* ---------- Fotky v IndexedDB ----------
    Fotky (data URL) sú veľké, preto ich NEUKLADÁME do localStorage (limit ~5 MB),
@@ -248,13 +251,19 @@ async function syncFromServer() {
 
   if (serverRows.length > 0) {
     data = normalize(serverRows);
+    // Nové katalógové položky (Zvnútra) doplníme aj do dát zo servera a hneď ich
+    // nahráme späť, nech ich vidia všetky zariadenia.
+    const added = ensureZvnutraSeed(data);
+    if (added) data = normalize(data);
     takeSnapshot();
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
+    if (added) await saveToServer();
     const onServer = await pullPhotosFromServer();
     await repairMissingPhotos(onServer); // dorovná fotky, čo sú lokálne ale chýbajú na serveri
     render();
   } else if (data.length > 0) {
-    await saveToServer();
+    await saveToServer();   // lokálne dáta (vrátane seedu Zvnútra) sú teraz na serveri
+    localStorage.setItem(ZVNUTRA_SEED_FLAG, "1");
     await pushAllPhotosToServer();
   }
 }
@@ -393,6 +402,36 @@ const LIM_SEED = [
     note: "logo kovové ako BELLE Bohemian" },
 ];
 
+/* Zvnútra — najpredávanejšie modely, ktoré treba nafotiť aj zvnútra
+   (interiér, podšívka, vrecká). Čísla v poznámke sú tržba a počet predaných
+   kusov z rebríčka top predaja — nie cena za kus, preto „Cena" ostáva prázdna.
+   Doplnia sa raz do dát (viď load() – dr_zvnutra_seed_v1). */
+const ZVNUTRA_SEED = [
+  { name: "Karin Orion „ČIERNA“ + Popruh",            collection: "Karin",       qty: 43,  revenue: 16605 },
+  { name: "Mia Bohemian „CARDINAL“ Zlatá",            collection: "Mia",         qty: 119, revenue: 16504, kovanie: "Zlaté" },
+  { name: "Ema Lady D „TMAVOZELENÁ“",                 collection: "Ema",         qty: 86,  revenue: 16279 },
+  { name: "Mia ZunZun",                                collection: "Mia",         qty: 78,  revenue: 16203 },
+  { name: "Bella La Rosa",                             collection: "Bella",       qty: 64,  revenue: 16060 },
+  { name: "Marketa DR x MPA",                          collection: "Marketa",     qty: 52,  revenue: 15961 },
+  { name: "Klementinka Bohemian „NERO“ Strieborná",   collection: "Klementínka", qty: 88,  revenue: 15470, kovanie: "Strieborné" },
+  { name: "Nicole Trinity „HNEDÁ“",                   collection: "Nicole",      qty: 62,  revenue: 15011 },
+  { name: "Grace Monaco",                              collection: "Grace",       qty: 67,  revenue: 14394 },
+  { name: "Mia Folk Popruh Cardinal Strieborná",       collection: "Mia",         qty: 77,  revenue: 14392, kovanie: "Strieborné" },
+  { name: "Bella Atlantis „BLEDOMODRÁ“",              collection: "Bella",       qty: 63,  revenue: 14090 },
+  { name: "Bella ZunZun",                              collection: "Bella",       qty: 66,  revenue: 14056 },
+  { name: "Vanesa Orion „ČIERNA“",                    collection: "Vanesa",      qty: 71,  revenue: 14020 },
+  { name: "Karin ZunZun",                              collection: "Karin",       qty: 30,  revenue: 13751 },
+  { name: "Lara Contessa",                             collection: "Lara",        qty: 55,  revenue: 13559 },
+  { name: "Ema Bohemian „SAND“ Zlatá",                collection: "Ema",         qty: 118, revenue: 13380, kovanie: "Zlaté" },
+  { name: "Klementínka Lady D „TMAVOZELENÁ“",         collection: "Klementínka", qty: 52,  revenue: 13097 },
+  { name: "LANA DR x Jana Hrmová „CRETA“ Zlatá",      collection: "Lana",        qty: 56,  revenue: 12703, kovanie: "Zlaté" },
+].map((p, i) => ({
+  ...p,
+  category: "zvnutra",
+  fotoNote: "Nafotiť aj zvnútra — interiér, podšívka, vrecká",
+  note: `Top predaj #${i + 1}: ${p.revenue.toLocaleString("sk-SK")} € / ${p.qty} ks`,
+}));
+
 /* Číselníky (fixné hodnoty pre statusy) */
 const PHOTO_STATUSES = ["", "Poslané na fotenie", "Vyfotené"];
 const STATUSES = ["", "Bošany", "V presune do BA", "Bratislava", "V presune do PE", "Partizánske"];
@@ -486,6 +525,8 @@ function normalize(rows) {
      "specialka" -> Špeciálka
      "rdf"       -> RDF produkty (pánska línia Raul Del Fuego)
      "nove"      -> Nové produkty
+     "kozmetika" -> Kozmetika
+     "zvnutra"   -> Zvnútra (modely, ktoré treba nafotiť aj zvnútra)
    Nové produkty majú kategóriu uloženú priamo (pole "category").
    Staré dáta bez tohto poľa odhadneme podľa kódu / názvu / poznámky. */
 function noDiac(s) {
@@ -598,9 +639,26 @@ function ensureSeed(rows, seedList) {
         qty: p.qty || 0, place: p.place || "", date: p.date || "2026-07-02",
         desc: p.desc || "", price: p.price || 0, note: p.note || "",
         kovanie: p.kovanie || "", category: p.category || "",
-        bucket: p.bucket || "", status: p.status || "" });
+        bucket: p.bucket || "", status: p.status || "",
+        collection: p.collection || "", fotoNote: p.fotoNote || "" });
     }
   });
+}
+
+/* Jednorazovo doplní produkty do záložky „Zvnútra".
+   Volá sa na dvoch miestach: v load() (prvé zariadenie / offline) aj po
+   stiahnutí dát zo servera — syncFromServer() totiž lokálne dáta prepíše,
+   takže samotný seed v load() by sa stratil. Flag zabráni opätovnému
+   pridaniu, ak používateľ produkty neskôr zmaže — ale zamkne sa až vtedy, keď
+   sú produkty v spoločnej databáze (lock), inak by load() flag „minul" ešte
+   pred príchodom serverových dát.
+   Vracia true, ak nejaké riadky naozaj pribudli. */
+function ensureZvnutraSeed(rows, lock = true) {
+  if (localStorage.getItem(ZVNUTRA_SEED_FLAG)) return false;
+  const before = rows.length;
+  ensureSeed(rows, ZVNUTRA_SEED);
+  if (lock) localStorage.setItem(ZVNUTRA_SEED_FLAG, "1");
+  return rows.length > before;
 }
 
 function load() {
@@ -630,6 +688,8 @@ function load() {
     ensureSeed(rows, LIM_SEED);
     localStorage.setItem("dr_lim_seed_v1", "1");
   }
+  // Záložka Zvnútra — bez zámku: dáta zo servera prídu až po load()
+  ensureZvnutraSeed(rows, false);
   // Jednorazovo: odstrániť pánske kozmetické tašky a doplniť pánsku ľadvinku
   if (!localStorage.getItem("dr_rdf_fix_v1")) {
     rows = rows.filter((r) => {
@@ -1715,8 +1775,8 @@ $("#archiveBtn")?.addEventListener("click", () => { currentBucket = "archive"; r
 
 /* ── Prepínanie kategórií BEZ znovunačítania stránky (žiadne blikanie) ──────
    Všetky dáta sú už načítané; kliknutie na kategóriu len prefiltruje a prekreslí. */
-const CAT_BY_HREF = { "./index.html": "limitka", "./nove.html": "nove", "./specialka.html": "specialka", "./rdf.html": "rdf", "./kozmetika.html": "kozmetika" };
-const HREF_BY_CAT = { limitka: "./index.html", nove: "./nove.html", specialka: "./specialka.html", rdf: "./rdf.html", kozmetika: "./kozmetika.html" };
+const CAT_BY_HREF = { "./index.html": "limitka", "./nove.html": "nove", "./specialka.html": "specialka", "./rdf.html": "rdf", "./kozmetika.html": "kozmetika", "./zvnutra.html": "zvnutra" };
+const HREF_BY_CAT = { limitka: "./index.html", nove: "./nove.html", specialka: "./specialka.html", rdf: "./rdf.html", kozmetika: "./kozmetika.html", zvnutra: "./zvnutra.html" };
 function switchCategory(cat, push = true) {
   if (!HREF_BY_CAT[cat]) return;
   PAGE_CATEGORY = cat;
