@@ -385,6 +385,12 @@ tbody tr.hotove-row:not([style*="--row-bg"]):hover td { background: #e9e7ef; }
 .b-edit    { background: #efe7f8; color: #7b3fa0; }
 .foto-dd   { width: 100%; min-width: 0; max-width: 100%; }
 
+/* Nafotené zvnútra (záložka Zvnútra) — hotový riadok zjemníme dozelena.
+   Komentár k fotke (.foto-flag) má prednosť, preto je nižšie a s !important. */
+tbody tr.zvnutra-done:not([style*="--row-bg"]) td { background: #e8f6ed; }
+tbody tr.zvnutra-done:not([style*="--row-bg"]):hover td { background: #ddf0e5; }
+tbody tr.zvnutra-done td:first-child { box-shadow: inset 3px 0 0 0 #2e9e5b; }
+
 /* Komentár k fotke — keď je vyplnený, celý riadok načerveno */
 tbody tr.foto-flag td { background: #ffe3e3 !important; }
 tbody tr.foto-flag td:first-child { box-shadow: inset 3px 0 0 0 var(--danger); }

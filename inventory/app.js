@@ -487,6 +487,37 @@ function fotoDdSelect(r) {
   return `<select class="badge-select foto-dd ${fotoDdClass(cur)}" data-fotodd="${r.id}" title="Stav fotenia">${opts}</select>`;
 }
 
+/* Stĺpec „Nafotené zvnútra" — galočka, že produkt už je nafotený aj zvnútra.
+   Zobrazuje sa len na stránke Zvnútra; ostatné kategórie stĺpec nemajú,
+   preto tam vraciame prázdny reťazec (nie prázdnu bunku — hlavička chýba). */
+function zvnutraCell(r) {
+  if (PAGE_CATEGORY !== "zvnutra") return "";
+  return `<td class="check-td"><input type="checkbox" class="zvnutra-check" data-zvid="${r.id}" ${r.fotenaZvnutra ? "checked" : ""} title="Nafotené zvnútra" /></td>`;
+}
+
+/* Hlavička stĺpca „📸 Zvnútra" sa pridáva/odoberá za behu.
+   Kategórie sa prepínajú bez reloadu (switchCategory), takže statické <th>
+   v HTML by po prepnutí nesedelo s počtom buniek v riadku. */
+function syncZvnutraColumn() {
+  const head = document.querySelector("thead tr");
+  if (!head) return;
+  const th = head.querySelector("th.zvnutra-th");
+  const need = PAGE_CATEGORY === "zvnutra";
+  if (need === !!th) return;
+  const colgroup = document.querySelector("colgroup");
+  if (need) {
+    const after = head.querySelector('th[data-sort="fotoStage"]');
+    if (!after) return;
+    after.insertAdjacentHTML("afterend",
+      `<th class="no-sort zvnutra-th" title="Produkt je už nafotený aj zvnútra">📸 Zvnútra</th>`);
+    colgroup?.querySelectorAll("col")[4]
+      ?.insertAdjacentHTML("afterend", `<col class="zvnutra-col" style="width:4%" />`);
+  } else {
+    th.remove();
+    colgroup?.querySelector("col.zvnutra-col")?.remove();
+  }
+}
+
 function kovanieClass(v) {
   return v === "Zlaté" ? "b-gold" : v === "Strieborné" ? "b-silver" : "b-empty";
 }
@@ -509,7 +540,8 @@ function normalize(rows) {
       photoStatus: "", photoLink: "", transferNo: "",
       transferUp: "", transferDown: "", status: "", rowColor: "", bucket: "",
       webSk: "", webCz: "", kovanie: "", deadline: "", category: "", collection: "",
-      fotoNote: "", presunka: "", presunkaLink: "", mgrNote: "", ...r,
+      fotoNote: "", presunka: "", presunkaLink: "", mgrNote: "",
+      fotenaZvnutra: false, ...r,
     };
     // Migrácia: starý jeden "transferNo" -> horný presun (na fotenie)
     if (!o.transferUp && o.transferNo) o.transferUp = o.transferNo;
@@ -897,6 +929,7 @@ function render() {
   // (napr. po vymazaní fotky) ostali visieť, keďže mouseleave sa už nespustí.
   hidePhotoZoom();
   hideTextZoom();
+  syncZvnutraColumn(); // hlavička musí sedieť s bunkami v riadku
   const rows = getView();
   const grid = $("#gridView");
   const tableWrap = document.querySelector(".table-wrap");
@@ -1016,8 +1049,10 @@ function renderFooter(rows) {
   if (!tfoot) return;
   if (!rows.length) { tfoot.innerHTML = ""; return; }
   const pieces = rows.reduce((s, r) => s + (+r.qty || 0), 0);
+  // Zvnútra má o stĺpec viac (galočka „nafotené zvnútra") → súhrn posunieme
+  const lead = PAGE_CATEGORY === "zvnutra" ? 8 : 7;
   tfoot.innerHTML = `<tr class="sum-row">
-    <td colspan="7" class="sum-label">Spolu v zozname</td>
+    <td colspan="${lead}" class="sum-label">Spolu v zozname</td>
     <td class="sum-pieces">${pieces}</td>
     <td colspan="13" class="sum-note">${rows.length} ${plural(rows.length, "produkt", "produkty", "produktov")} · ${pieces} ${plural(pieces, "kus", "kusy", "kusov")}</td>
   </tr>`;
@@ -1163,13 +1198,15 @@ function rowHtml(r) {
   const style = r.rowColor ? ` style="--row-bg:${r.rowColor}"` : "";
   const flagged = (r.refotoNote && r.refotoNote.trim()) || r.refoto; // komentár k fotke → červený riadok
   const bucketCls = r.bucket === "soldout" ? "hotove-row" : (r.bucket === "trash" ? "bucketed" : "");
-  const cls = [bucketCls, selected.has(r.id) ? "selected" : "", flagged ? "foto-flag" : ""].join(" ").trim();
+  const cls = [bucketCls, selected.has(r.id) ? "selected" : "", flagged ? "foto-flag" : "",
+    r.fotenaZvnutra ? "zvnutra-done" : ""].join(" ").trim();
   return `<tr data-id="${r.id}" class="${cls}"${style}>
     <td class="sel-td"><input type="checkbox" class="row-sel" data-sel-id="${r.id}" ${selected.has(r.id) ? "checked" : ""} /></td>
     <td class="code">${esc(r.code)}</td>
     <td class="cell-edit" data-field="name" contenteditable="true">${esc(r.name)}</td>
     <td>${thumb}</td>
     <td>${fotoDdSelect(r)}</td>
+    ${zvnutraCell(r)}
     <td>${linkCell(r.id, "photoLink", r.photoLink)}</td>
     <td class="qty-cell">
       <button class="qty-step" data-step="-1" data-id="${r.id}" title="−1">−</button>
@@ -1261,6 +1298,16 @@ function bindRowEvents() {
       save();
       render();
       toast(c.checked ? "Presunuté do Hotové" : "Zrušené Hotové");
+    });
+  });
+  // Nafotené zvnútra: galočka len označí produkt, etapu procesu nemení
+  document.querySelectorAll(".zvnutra-check").forEach((c) => {
+    c.addEventListener("change", () => {
+      const row = data.find((r) => r.id === +c.dataset.zvid);
+      row.fotenaZvnutra = c.checked;
+      save();
+      c.closest("tr")?.classList.toggle("zvnutra-done", c.checked);
+      toast(c.checked ? "Označené ako nafotené zvnútra" : "Zrušené");
     });
   });
   // Kovanie: klik na farebný bod = vybrať, opätovný klik = zrušiť
@@ -1726,7 +1773,7 @@ async function saveModal() {
 
 /* ---------- Export ---------- */
 function exportCSV() {
-  const cols = ["category", "collection", "code", "name", "qty", "place", "kovanie", "status", "presunka", "presunkaLink", "transferUp", "transferDown", "photoStatus", "photoLink", "fotoNote", "webSk", "webCz", "date", "deadline", "desc", "price", "note", "mgrNote", "bucket"];
+  const cols = ["category", "collection", "code", "name", "qty", "place", "kovanie", "status", "presunka", "presunkaLink", "transferUp", "transferDown", "photoStatus", "photoLink", "fotoNote", "webSk", "webCz", "date", "deadline", "desc", "price", "note", "mgrNote", "fotenaZvnutra", "bucket"];
   const head = ["Kategória", "Kolekcia", "Kód", "Názov produktu", "Počet ks", "Miesto výroby", "Kovanie", "Stav", "Č. presunky", "Odkaz na presunku", "Presun na fotenie", "Presun na sklad", "Stav fotenia", "Odkaz na fotky", "Poznámka pre fotenie", "Web SK", "Web CZ", "Dátum uverejnenia", "Deadline", "Popis", "Cena", "Poznámka", "Kôš"];
   // Pozn.: stĺpec "Stav" v tabuľke je premenovaný na "Mesto", v CSV ostáva pole `status`.
   const lines = [head.join(",")];
