@@ -8,7 +8,10 @@ const SANDBOX = (typeof window !== "undefined" && window.EFP_SANDBOX === true);
 const STORAGE_KEY = SANDBOX ? "dr_inventory_sandbox_v2" : "dr_inventory_v2";
 // Príznak, že produkty záložky „Zvnútra" sú už doplnené (viď ensureZvnutraSeed).
 // Musí byť hore — load() beží skôr, než sa inicializujú konštanty pri ňom.
-const ZVNUTRA_SEED_FLAG = "dr_zvnutra_seed_v1";
+// v2 = doplnený celý rebríček TOP 40 (pôvodné v1 malo len poradie 23–40).
+const ZVNUTRA_SEED_FLAG = "dr_zvnutra_seed_v2";
+// Prečíslovanie poznámok „Top predaj #N" u riadkov, ktoré pribudli ešte z v1.
+const ZVNUTRA_RANK_FLAG = "dr_zvnutra_rank_v2";
 
 /* ---------- Fotky v IndexedDB ----------
    Fotky (data URL) sú veľké, preto ich NEUKLADÁME do localStorage (limit ~5 MB),
@@ -264,6 +267,7 @@ async function syncFromServer() {
   } else if (data.length > 0) {
     await saveToServer();   // lokálne dáta (vrátane seedu Zvnútra) sú teraz na serveri
     localStorage.setItem(ZVNUTRA_SEED_FLAG, "1");
+    localStorage.setItem(ZVNUTRA_RANK_FLAG, "1");
     await pushAllPhotosToServer();
   }
 }
@@ -403,10 +407,34 @@ const LIM_SEED = [
 ];
 
 /* Zvnútra — najpredávanejšie modely, ktoré treba nafotiť aj zvnútra
-   (interiér, podšívka, vrecká). Čísla v poznámke sú tržba a počet predaných
-   kusov z rebríčka top predaja — nie cena za kus, preto „Cena" ostáva prázdna.
-   Doplnia sa raz do dát (viď load() – dr_zvnutra_seed_v1). */
+   (interiér, podšívka, vrecká). Čísla nižšie sú tržba a počet PREDANÝCH kusov
+   z rebríčka top predaja — nie cena za kus a nie zásoba na sklade. Preto idú
+   len do poznámky a stĺpce „Cena" aj „Počet ks" ostávajú prázdne: inak by
+   súčet dole („… kusov") a graf podľa kolekcie ukazovali predaje ako zásobu.
+   Doplnia sa raz do dát (viď load() – ZVNUTRA_SEED_FLAG). */
 const ZVNUTRA_SEED = [
+  { name: "Bella Bohemian „CARDINAL“ Zlatá",          collection: "Bella",       qty: 417, revenue: 55287, kovanie: "Zlaté" },
+  { name: "Bella Bohemian „NERO“ Zlatá",              collection: "Bella",       qty: 393, revenue: 53474, kovanie: "Zlaté" },
+  { name: "Khloe Orion „ČIERNA“",                     collection: "Khloe",       qty: 220, revenue: 37609 },
+  { name: "Bella Contessa",                            collection: "Bella",       qty: 168, revenue: 37214 },
+  { name: "Karin II DR x Monika Bagarová",             collection: "Karin",       qty: 146, revenue: 36691 },
+  { name: "Mia DR x Erika Mokrý",                      collection: "Mia",         qty: 182, revenue: 36198 },
+  { name: "Karin DR x Monika Bagarová",                collection: "Karin",       qty: 77,  revenue: 36041 },
+  { name: "Mia Trinity „HNEDÁ“",                      collection: "Mia",         qty: 173, revenue: 29719 },
+  { name: "Bella Trinity „HNEDÁ“",                    collection: "Bella",       qty: 143, revenue: 29543 },
+  { name: "Ema Bohemian „CARDINAL“ Zlatá",            collection: "Ema",         qty: 206, revenue: 24962, kovanie: "Zlaté" },
+  { name: "Ema Bohemian „NERO“ Zlatá",                collection: "Ema",         qty: 206, revenue: 24467, kovanie: "Zlaté" },
+  { name: "Mia Lady D „TMAVOZELENÁ“",                 collection: "Mia",         qty: 125, revenue: 23694 },
+  { name: "Bella Orion „ČIERNA“",                     collection: "Bella",       qty: 109, revenue: 22156 },
+  { name: "Nicole Orion „ČIERNA“",                    collection: "Nicole",      qty: 91,  revenue: 21891 },
+  { name: "Bella Bohemian „CARDINAL“ Strieborná",     collection: "Bella",       qty: 154, revenue: 21716, kovanie: "Strieborné" },
+  { name: "Mia Bohemian „NERO“ Zlatá",                collection: "Mia",         qty: 153, revenue: 20671, kovanie: "Zlaté" },
+  { name: "Klementinka Bohemian „NERO“ Zlatá",        collection: "Klementínka", qty: 109, revenue: 19689, kovanie: "Zlaté" },
+  { name: "Bella Bohemian „PARROT“ Zlatá",            collection: "Bella",       qty: 147, revenue: 19576, kovanie: "Zlaté" },
+  { name: "Bella Bohemian „NERO“ Strieborná",         collection: "Bella",       qty: 148, revenue: 19282, kovanie: "Strieborné" },
+  { name: "Nicole ZunZun",                             collection: "Nicole",      qty: 69,  revenue: 18782 },
+  { name: "Lisa Orion „ČIERNA“",                      collection: "Lisa",        qty: 67,  revenue: 17346 },
+  { name: "Klementinka Bohemian „CARDINAL“ Zlatá",    collection: "Klementínka", qty: 95,  revenue: 16745, kovanie: "Zlaté" },
   { name: "Karin Orion „ČIERNA“ + Popruh",            collection: "Karin",       qty: 43,  revenue: 16605 },
   { name: "Mia Bohemian „CARDINAL“ Zlatá",            collection: "Mia",         qty: 119, revenue: 16504, kovanie: "Zlaté" },
   { name: "Ema Lady D „TMAVOZELENÁ“",                 collection: "Ema",         qty: 86,  revenue: 16279 },
@@ -427,10 +455,16 @@ const ZVNUTRA_SEED = [
   { name: "LANA DR x Jana Hrmová „CRETA“ Zlatá",      collection: "Lana",        qty: 56,  revenue: 12703, kovanie: "Zlaté" },
 ].map((p, i) => ({
   ...p,
+  rank: i + 1,
+  sold: p.qty,          // počet predaných kusov — len pre text poznámky
+  qty: 0,               // „Počet ks" = zásoba na sklade, tú z rebríčka nevieme
   category: "zvnutra",
   fotoNote: "Nafotiť aj zvnútra — interiér, podšívka, vrecká",
-  note: `Top predaj #${i + 1}: ${p.revenue.toLocaleString("sk-SK")} € / ${p.qty} ks`,
+  note: zvnutraNote(i + 1, p.revenue, p.qty),
 }));
+function zvnutraNote(rank, revenue, qty) {
+  return `Top predaj #${rank}: ${revenue.toLocaleString("sk-SK")} € / ${qty} ks`;
+}
 
 /* Číselníky (fixné hodnoty pre statusy) */
 const PHOTO_STATUSES = ["", "Poslané na fotenie", "Vyfotené"];
@@ -686,11 +720,40 @@ function ensureSeed(rows, seedList) {
    pred príchodom serverových dát.
    Vracia true, ak nejaké riadky naozaj pribudli. */
 function ensureZvnutraSeed(rows, lock = true) {
-  if (localStorage.getItem(ZVNUTRA_SEED_FLAG)) return false;
+  const changed = fixZvnutraRanks(rows, lock);
+  if (localStorage.getItem(ZVNUTRA_SEED_FLAG)) return changed;
   const before = rows.length;
   ensureSeed(rows, ZVNUTRA_SEED);
   if (lock) localStorage.setItem(ZVNUTRA_SEED_FLAG, "1");
-  return rows.length > before;
+  return changed || rows.length > before;
+}
+
+/* Oprava riadkov, ktoré pribudli ešte prvou verziou seedu:
+   1. Poradie — mali v poznámke #1–#18, lenže v úplnom rebríčku TOP 40 im
+      patrí #23–#40.
+   2. „Počet ks" — dostali tam počet PREDANÝCH kusov, čo je iný údaj než
+      zásoba na sklade; súčet dole potom ukazoval predaje. Vynulujeme.
+   Obe opravy sú opatrné: poznámku prepíšeme len ak má tvar „Top predaj #N…"
+   (vlastný text od kolegov ostane) a kusy vynulujeme len vtedy, ak tam sedí
+   presne pôvodná hodnota zo seedu — ak už niekto doplnil reálnu zásobu,
+   nesiahame na ňu. */
+function fixZvnutraRanks(rows, lock = true) {
+  if (localStorage.getItem(ZVNUTRA_RANK_FLAG)) return false;
+  let changed = false;
+  ZVNUTRA_SEED.forEach((p) => {
+    const row = rows.find((r) => r.name === p.name);
+    if (!row) return;
+    if (row.note !== p.note && /^Top predaj #\d+/.test(row.note || "")) {
+      row.note = p.note;
+      changed = true;
+    }
+    if (Number(row.qty) === p.sold) {
+      row.qty = 0;
+      changed = true;
+    }
+  });
+  if (lock) localStorage.setItem(ZVNUTRA_RANK_FLAG, "1");
+  return changed;
 }
 
 function load() {
