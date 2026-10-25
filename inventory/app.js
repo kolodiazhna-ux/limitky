@@ -598,6 +598,13 @@ function normalize(rows) {
 function noDiac(s) {
   return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 }
+/* Normaliz\u00e1cia textu na h\u013eadanie. N\u00e1zvy modelov maj\u00fa diakritiku aj typografick\u00e9
+   \u00favodzovky (\u201eNERO\u201c), tak\u017ee bez tohto by \u201ecierna" nena\u0161lo Khloe Orion \u201e\u010cIERNA\u201c
+   a \u201enero" by zlyhalo pri skop\u00edrovanom re\u0165azci s \u00favodzovkami. Zrovn\u00e1me preto
+   diakritiku, v\u0161etky druhy \u00favodzoviek aj viacn\u00e1sobn\u00e9 medzery. */
+function searchNorm(s) {
+  return noDiac(s).replace(/[\u201e\u201c\u201d"\u201a\u2018\u2019'`]/g, "").replace(/\s+/g, " ").trim();
+}
 function inferCategory(r) {
   const name = noDiac(r.name), code = noDiac(r.code), note = noDiac(r.note);
   if (name.includes("RDF") || code.includes("RDF") || note.includes("RDF")) return "rdf";
@@ -647,6 +654,9 @@ let data = load();
 let sortKey = "date";
 let sortDir = -1; // -1 = desc, 1 = asc
 let editingPhoto = "";
+// Filter 🔍 v hlavičke stĺpca „Názov produktu" — hľadá iba v názve, nezávisle
+// od horného vyhľadávania (to prehľadáva aj kód, popis a poznámky).
+let nameFilter = "";
 
 /* ---------- Kto naposledy upravil produkt (iniciálky) ----------
    Pred každým uložením sa porovná aktuálny stav so snímkou z posledného
@@ -948,7 +958,8 @@ function toast(msg) {
 
 /* ---------- Filters / sort ---------- */
 function getView() {
-  const q = $("#searchInput").value.trim().toLowerCase();
+  const q = searchNorm($("#searchInput").value);
+  const nq = searchNorm(nameFilter);
   let rows = data.filter((r) => {
     // Zobraz iba produkty kategórie tejto stránky.
     if (productCategory(r) !== PAGE_CATEGORY) return false;
@@ -963,8 +974,10 @@ function getView() {
     }
     // Filter podľa miesta (počítadlá nad zoznamom = stĺpec Mesto)
     if (fotoFilter !== "all" && (r.status || "") !== fotoFilter) return false;
+    // 🔍 v hlavičke — iba názov modelu
+    if (nq && !searchNorm(r.name).includes(nq)) return false;
     if (q) {
-      const hay = `${r.code} ${r.name} ${r.desc} ${r.note} ${r.fotoNote} ${r.place}`.toLowerCase();
+      const hay = searchNorm(`${r.code} ${r.name} ${r.desc} ${r.note} ${r.fotoNote} ${r.place}`);
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -994,6 +1007,7 @@ function render() {
   hideTextZoom();
   syncZvnutraColumn(); // hlavička musí sedieť s bunkami v riadku
   const rows = getView();
+  renderNameFilterState(rows.length);
   const grid = $("#gridView");
   const tableWrap = document.querySelector(".table-wrap");
 
@@ -1892,6 +1906,7 @@ function switchCategory(cat, push = true) {
   PAGE_CATEGORY = cat;
   currentBucket = "new";
   fotoFilter = "all";
+  setNameFilter("");   // inak by v novej kategórii bez vysvetlenia chýbali riadky
   document.querySelectorAll(".toolbar a.btn-ghost").forEach((a) => {
     a.classList.toggle("active", CAT_BY_HREF[a.getAttribute("href")] === cat);
   });
@@ -1979,6 +1994,74 @@ function initColumnResize() {
   });
 }
 initColumnResize();
+
+/* ── 🔍 Filter podľa názvu v hlavičke stĺpca „Názov produktu" ──────────────
+   Horné vyhľadávanie prehľadáva aj kód, popis a poznámky, takže pri hľadaní
+   modelu vracia aj riadky, kde sa slovo trafilo len v poznámke. Táto lupa
+   filtruje výhradne názov a dá sa s horným hľadaním kombinovať.
+   Hlavička má vlastný click listener na radenie, preto všetkým novým prvkom
+   zastavíme bublanie — inak by kliknutie do políčka preradilo tabuľku. */
+function initNameFilter() {
+  const th = document.querySelector('thead th[data-sort="name"]');
+  if (!th || th.querySelector(".th-find-btn")) return;
+  th.insertAdjacentHTML("beforeend",
+    `<button type="button" class="th-find-btn" title="Filtrovať podľa názvu">🔍</button>
+     <div class="th-find" hidden>
+       <input type="text" class="th-find-input" placeholder="názov sumky…" />
+       <button type="button" class="th-find-clear" title="Zrušiť filter">✕</button>
+       <span class="th-find-count"></span>
+     </div>`);
+  const box = th.querySelector(".th-find");
+  const input = th.querySelector(".th-find-input");
+
+  th.querySelectorAll(".th-find-btn, .th-find, .th-find-clear").forEach((el) => {
+    el.addEventListener("click", (e) => e.stopPropagation());
+  });
+  th.querySelector(".th-find-btn").addEventListener("click", () => {
+    box.hidden ? openNameFilter() : setNameFilter("");
+  });
+  th.querySelector(".th-find-clear").addEventListener("click", () => {
+    setNameFilter("");
+    openNameFilter();          // políčko necháme otvorené, nech sa dá hľadať ďalej
+  });
+  input.addEventListener("input", () => { nameFilter = input.value; render(); });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") setNameFilter("");
+    e.stopPropagation();
+  });
+}
+function openNameFilter() {
+  const box = document.querySelector("thead .th-find");
+  if (!box) return;
+  box.hidden = false;
+  box.closest("th")?.classList.add("find-open");
+  box.querySelector(".th-find-input").focus();
+}
+/* Nastaví (alebo zruší) filter a zrovná s ním aj políčko — voláme ho aj zvonku
+   (prepnutie kategórie), kde sa text musí vyčistiť spolu so stavom. */
+function setNameFilter(v) {
+  nameFilter = v;
+  const box = document.querySelector("thead .th-find");
+  if (box) {
+    box.querySelector(".th-find-input").value = v;
+    if (!v) {
+      box.hidden = true;
+      box.closest("th")?.classList.remove("find-open");
+    }
+  }
+  render();
+}
+/* Lupa posvieti, keď filter beží, a ukáže počet nájdených riadkov — inak by
+   sa dal ľahko prehliadnuť a chýbajúce riadky by vyzerali ako chyba. */
+function renderNameFilterState(shown) {
+  const btn = document.querySelector("thead .th-find-btn");
+  if (!btn) return;
+  btn.classList.toggle("active", !!nameFilter.trim());
+  const cnt = document.querySelector("thead .th-find-count");
+  if (cnt) cnt.textContent = nameFilter.trim() ? `${shown}` : "";
+}
+initNameFilter();
+
 // Načítať fotky z IndexedDB a presunúť staré fotky z localStorage
 (async () => {
   await loadAllPhotos();
